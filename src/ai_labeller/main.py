@@ -1840,11 +1840,9 @@ class UltimateLabeller:
 
 # ==================== 主程式入口 ====================
 def main():
-    """這是供 pip 套件呼叫的進入點"""
     root = tk.Tk()
     app = UltimateLabeller(root)
     root.mainloop()
 
 if __name__ == "__main__":
-    # 這樣你直接執行 python main.py 也能跑
     main()
