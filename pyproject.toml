@@ -7,7 +7,7 @@ name = "ultimate_ai_labeller"
 version = "0.1.0"
 description = "AI Labelling tool for computer vision"
 readme = "README.md"
-authors = [{ name="James Chang", email="james273899@gmail.com" }]
+authors = [{ name="James Chang", email="james2738999@gmail.com" }]
 dependencies = [
     "pillow",
     "numpy",
