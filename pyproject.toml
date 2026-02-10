@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ultimate_ai_labeller"
+version = "0.1.0"
+description = "AI Labelling tool for computer vision"
+readme = "README.md"
+authors = [{ name="James Chang", email="james273899@gmail.com" }]
+dependencies = [
+    "pillow",
+    "numpy",
+    "opencv-python",
+    "ultralytics",
+]
+
+[project.scripts]
+# 設定指令名稱：安裝後在終端機輸入 ai-labeller 就能啟動
+ai-labeller = "ai_labeller.main:main"
