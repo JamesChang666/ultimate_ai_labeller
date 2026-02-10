@@ -3,14 +3,14 @@ name: Publish to PyPI
 on:
   push:
     tags:
-      - 'v*' # 当你推送以 v 开头的标签（如 v0.1.0）时触发
+      - 'v*' 
 
 jobs:
   build-n-publish:
     name: Build and publish Python distro to PyPI
     runs-on: ubuntu-latest
     permissions:
-      # 这部分是 Trusted Publisher 必需的权限
+      #  Trusted Publisher 
       id-token: write
       contents: read
 
