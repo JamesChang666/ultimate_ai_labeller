@@ -1,4 +1,6 @@
 import tkinter as tk
+import ctypes
+import ctypes.wintypes
 from tkinter import filedialog, messagebox, ttk, simpledialog
 from PIL import Image, ImageTk, ImageDraw
 import os, glob, json, copy, datetime, shutil
@@ -178,6 +180,15 @@ LANG_MAP = {
         "dataset": "Dataset",
         "lang_switch": "中文",
         "delete": "Delete Selected",
+        "remove_from_split": "Remove From Split",
+        "remove_confirm": "Remove current image from {split}?",
+        "remove_done": "Removed: {name}",
+        "remove_none": "No image to remove.",
+        "restore_from_split": "Restore Deleted Frame",
+        "restore_none": "No removed frame found in this split.",
+        "restore_title": "Restore Deleted Frame",
+        "restore_select": "Select a frame to restore:",
+        "restore_done": "Restored: {name}",
     }
 }
 
@@ -250,8 +261,8 @@ class UltimateLabeller:
         self.lang = "zh"
         self.theme = "dark"
         self.root.title(LANG_MAP[self.lang]["title"])
-        self.root.geometry("1600x1000")
-        self.root.minsize(1200, 800)
+        self.root.geometry("1100x700")
+        self.root.minsize(900, 600)
         
         # 設定自定義字體
         self.setup_fonts()
@@ -553,7 +564,6 @@ class UltimateLabeller:
             ("Space", LANG_MAP[self.lang]["fuse"]),
             ("Ctrl+Z", LANG_MAP[self.lang]["undo"]),
             ("Ctrl+Y", LANG_MAP[self.lang]["redo"]),
-            ("Ctrl+Shift+Z", LANG_MAP[self.lang]["redo"]),
             ("Del", LANG_MAP[self.lang]["delete"]),
         ]
         lines = [LANG_MAP[self.lang]["shortcut_help"]]
@@ -572,7 +582,6 @@ class UltimateLabeller:
         y = widget.winfo_rooty() + widget.winfo_height() + 6
         win = tk.Toplevel(self.root)
         win.wm_overrideredirect(True)
-        win.wm_geometry(f"+{x}+{y}")
         win.configure(bg=COLORS["bg_white"])
         label = tk.Label(
             win,
@@ -586,7 +595,72 @@ class UltimateLabeller:
             pady=8
         )
         label.pack()
+        win.update_idletasks()
+
+        tooltip_w = win.winfo_reqwidth()
+        tooltip_h = win.winfo_reqheight()
+        left, top, right, bottom = self._get_widget_monitor_bounds(widget)
+        margin = 8
+
+        if x + tooltip_w > right - margin:
+            x = right - tooltip_w - margin
+        if x < left + margin:
+            x = left + margin
+
+        if y + tooltip_h > bottom - margin:
+            y = widget.winfo_rooty() - tooltip_h - 6
+        if y < top + margin:
+            y = top + margin
+
+        win.wm_geometry(f"+{int(x)}+{int(y)}")
         self._tooltip_win = win
+
+    def _get_widget_monitor_bounds(self, widget):
+        # Fallback for non-Windows or API failure: virtual desktop bounds.
+        left = widget.winfo_vrootx()
+        top = widget.winfo_vrooty()
+        right = left + widget.winfo_vrootwidth()
+        bottom = top + widget.winfo_vrootheight()
+
+        try:
+            user32 = ctypes.windll.user32
+            monitor = user32.MonitorFromPoint(
+                ctypes.wintypes.POINT(widget.winfo_rootx(), widget.winfo_rooty()),
+                2
+            )
+            if not monitor:
+                return left, top, right, bottom
+
+            class RECT(ctypes.Structure):
+                _fields_ = [
+                    ("left", ctypes.c_long),
+                    ("top", ctypes.c_long),
+                    ("right", ctypes.c_long),
+                    ("bottom", ctypes.c_long),
+                ]
+
+            class MONITORINFO(ctypes.Structure):
+                _fields_ = [
+                    ("cbSize", ctypes.c_ulong),
+                    ("rcMonitor", RECT),
+                    ("rcWork", RECT),
+                    ("dwFlags", ctypes.c_ulong),
+                ]
+
+            mi = MONITORINFO()
+            mi.cbSize = ctypes.sizeof(MONITORINFO)
+            ok = user32.GetMonitorInfoW(monitor, ctypes.byref(mi))
+            if ok:
+                return (
+                    mi.rcWork.left,
+                    mi.rcWork.top,
+                    mi.rcWork.right,
+                    mi.rcWork.bottom,
+                )
+        except Exception:
+            pass
+
+        return left, top, right, bottom
 
     def hide_shortcut_tooltip(self):
         if self._tooltip_after_id:
@@ -645,35 +719,69 @@ class UltimateLabeller:
         sidebar.pack_propagate(False)
         
         # 滾動容器
-        canvas_scroll = tk.Canvas(sidebar, bg=COLORS["bg_light"], highlightthickness=0)
-        scrollbar = ttk.Scrollbar(sidebar, orient="vertical", command=canvas_scroll.yview)
-        scrollable_frame = tk.Frame(canvas_scroll, bg=COLORS["bg_light"])
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas_scroll.configure(scrollregion=canvas_scroll.bbox("all"))
+        self.sidebar_canvas = tk.Canvas(
+            sidebar,
+            bg=COLORS["bg_light"],
+            highlightthickness=0,
+            relief="flat"
         )
+        self.sidebar_scrollbar = ttk.Scrollbar(
+            sidebar,
+            orient="vertical",
+            command=self.sidebar_canvas.yview
+        )
+        self.sidebar_scroll_frame = tk.Frame(self.sidebar_canvas, bg=COLORS["bg_light"])
         
-        canvas_scroll.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas_scroll.configure(yscrollcommand=scrollbar.set)
+        self.sidebar_window = self.sidebar_canvas.create_window(
+            (0, 0),
+            window=self.sidebar_scroll_frame,
+            anchor="nw"
+        )
+        self.sidebar_canvas.configure(yscrollcommand=self.sidebar_scrollbar.set)
+        self.sidebar_scroll_frame.bind("<Configure>", self._on_sidebar_frame_configure)
+        self.sidebar_canvas.bind("<Configure>", self._on_sidebar_canvas_configure)
+        self.sidebar_canvas.bind("<MouseWheel>", self._on_sidebar_mousewheel)
+        self.sidebar_canvas.bind("<Button-4>", lambda e: self.sidebar_canvas.yview_scroll(-1, "units"))
+        self.sidebar_canvas.bind("<Button-5>", lambda e: self.sidebar_canvas.yview_scroll(1, "units"))
         
         # ===== 檔案資訊卡片 =====
-        self.create_info_card(scrollable_frame)
+        self.create_info_card(self.sidebar_scroll_frame)
         
         # ===== 類別管理卡片 =====
-        self.create_class_card(scrollable_frame)
+        self.create_class_card(self.sidebar_scroll_frame)
         
         # ===== AI 工具卡片 =====
-        self.create_ai_card(scrollable_frame)
+        self.create_ai_card(self.sidebar_scroll_frame)
         
         # ===== 快捷鍵卡片 =====
-        self.create_shortcut_card(scrollable_frame)
+        self.create_shortcut_card(self.sidebar_scroll_frame)
         
         # ===== 底部導航 =====
         self.create_navigation(sidebar)
+        self._bind_sidebar_mousewheel(self.sidebar_scroll_frame)
         
-        canvas_scroll.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        self.sidebar_canvas.pack(side="left", fill="both", expand=True)
+        self.sidebar_scrollbar.pack(side="right", fill="y")
+
+    def _on_sidebar_frame_configure(self, e=None):
+        if hasattr(self, "sidebar_canvas"):
+            self.sidebar_canvas.configure(scrollregion=self.sidebar_canvas.bbox("all"))
+
+    def _on_sidebar_canvas_configure(self, e):
+        if hasattr(self, "sidebar_canvas") and hasattr(self, "sidebar_window"):
+            self.sidebar_canvas.itemconfigure(self.sidebar_window, width=e.width)
+
+    def _on_sidebar_mousewheel(self, e):
+        if e.delta:
+            self.sidebar_canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+        return "break"
+
+    def _bind_sidebar_mousewheel(self, widget):
+        widget.bind("<MouseWheel>", self._on_sidebar_mousewheel, add="+")
+        widget.bind("<Button-4>", lambda e: self.sidebar_canvas.yview_scroll(-1, "units"), add="+")
+        widget.bind("<Button-5>", lambda e: self.sidebar_canvas.yview_scroll(1, "units"), add="+")
+        for child in widget.winfo_children():
+            self._bind_sidebar_mousewheel(child)
 
     def get_theme_switch_label(self):
         key = "theme_light" if self.theme == "dark" else "theme_dark"
@@ -833,6 +941,18 @@ class UltimateLabeller:
             text=LANG_MAP[self.lang]["clear_labels"],
             command=self.clear_current_labels
         ).pack(fill="x", pady=(0, 12))
+
+        self.create_secondary_button(
+            content,
+            text=LANG_MAP[self.lang].get("remove_from_split", "Remove From Split"),
+            command=self.remove_current_from_split
+        ).pack(fill="x", pady=(0, 12))
+
+        self.create_secondary_button(
+            content,
+            text=LANG_MAP[self.lang].get("restore_from_split", "Restore Deleted Frame"),
+            command=self.open_restore_removed_dialog
+        ).pack(fill="x", pady=(0, 12))
         
         # 匯出格式
         tk.Label(
@@ -906,7 +1026,6 @@ class UltimateLabeller:
             ("Space", LANG_MAP[self.lang]["fuse"]),
             ("Ctrl+Z", LANG_MAP[self.lang]["undo"]),
             ("Ctrl+Y", LANG_MAP[self.lang]["redo"]),
-            ("Ctrl+Shift+Z", LANG_MAP[self.lang]["redo"]),
             ("Del", LANG_MAP[self.lang]["delete"])
         ]
         
@@ -920,7 +1039,7 @@ class UltimateLabeller:
                 font=self.font_mono,
                 fg=COLORS["primary"],
                 bg=COLORS["bg_white"],
-                width=10,
+                width=12,
                 anchor="w"
             ).pack(side="left")
             
@@ -1554,6 +1673,198 @@ class UltimateLabeller:
             pady=10
         ).pack(fill="x", padx=20, pady=(20, 16))
     
+    def _build_removed_path(self, kind, src_path):
+        ext = os.path.splitext(src_path)[1]
+        base = os.path.splitext(os.path.basename(src_path))[0]
+        dst_dir = os.path.join(self.project_root, "removed", self.current_split, kind)
+        os.makedirs(dst_dir, exist_ok=True)
+        dst_path = os.path.join(dst_dir, f"{base}{ext}")
+        if not os.path.exists(dst_path):
+            return dst_path
+
+        i = 1
+        while True:
+            candidate = os.path.join(dst_dir, f"{base}_{i}{ext}")
+            if not os.path.exists(candidate):
+                return candidate
+            i += 1
+
+    def _unique_target_path(self, target_path):
+        if not os.path.exists(target_path):
+            return target_path
+        folder = os.path.dirname(target_path)
+        base, ext = os.path.splitext(os.path.basename(target_path))
+        i = 1
+        while True:
+            candidate = os.path.join(folder, f"{base}_{i}{ext}")
+            if not os.path.exists(candidate):
+                return candidate
+            i += 1
+
+    def remove_current_from_split(self):
+        if not self.image_files:
+            messagebox.showinfo(
+                LANG_MAP[self.lang]["title"],
+                LANG_MAP[self.lang].get("remove_none", "No image to remove.")
+            )
+            return
+        if not self.project_root:
+            return
+
+        confirm_msg = LANG_MAP[self.lang].get(
+            "remove_confirm",
+            "Remove current image from {split}?"
+        ).format(split=self.current_split)
+        if not messagebox.askyesno(LANG_MAP[self.lang]["title"], confirm_msg):
+            return
+
+        image_path = self.image_files[self.current_idx]
+        image_name = os.path.basename(image_path)
+        base = os.path.splitext(image_name)[0]
+
+        try:
+            moved_image_path = self._build_removed_path("images", image_path)
+            shutil.move(image_path, moved_image_path)
+            label_dir = os.path.join(self.project_root, "labels", self.current_split)
+            for ext in (".txt", ".json"):
+                label_path = os.path.join(label_dir, f"{base}{ext}")
+                if os.path.exists(label_path):
+                    moved_label_path = self._build_removed_path("labels", label_path)
+                    shutil.move(label_path, moved_label_path)
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+            return
+
+        del self.image_files[self.current_idx]
+        if self.current_idx >= len(self.image_files):
+            self.current_idx = max(0, len(self.image_files) - 1)
+
+        if self.image_files:
+            self.load_img()
+        else:
+            self.img_pil = None
+            self.img_tk = None
+            self.rects = []
+            self.history = []
+            self.redo_stack = []
+            self.selected_idx = None
+            self.active_handle = None
+            self.is_moving_box = False
+            self.drag_start = None
+            self.temp_rect_coords = None
+            self.update_info_text()
+            self.render()
+
+        done_msg = LANG_MAP[self.lang].get("remove_done", "Removed: {name}").format(name=image_name)
+        messagebox.showinfo(LANG_MAP[self.lang]["title"], done_msg)
+
+    def open_restore_removed_dialog(self):
+        if not self.project_root:
+            return
+
+        removed_img_dir = os.path.join(self.project_root, "removed", self.current_split, "images")
+        if not os.path.isdir(removed_img_dir):
+            messagebox.showinfo(
+                LANG_MAP[self.lang]["title"],
+                LANG_MAP[self.lang].get("restore_none", "No removed frame found in this split.")
+            )
+            return
+
+        removed_files = sorted([
+            f for f in os.listdir(removed_img_dir)
+            if f.lower().endswith((".png", ".jpg", ".jpeg"))
+        ])
+        if not removed_files:
+            messagebox.showinfo(
+                LANG_MAP[self.lang]["title"],
+                LANG_MAP[self.lang].get("restore_none", "No removed frame found in this split.")
+            )
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title(LANG_MAP[self.lang].get("restore_title", "Restore Deleted Frame"))
+        win.geometry("520x420")
+        win.configure(bg=COLORS["bg_light"])
+
+        tk.Label(
+            win,
+            text=LANG_MAP[self.lang].get("restore_select", "Select a frame to restore:"),
+            font=self.font_primary,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_light"],
+            anchor="w"
+        ).pack(fill="x", padx=16, pady=(16, 8))
+
+        list_wrap = tk.Frame(win, bg=COLORS["bg_light"])
+        list_wrap.pack(fill="both", expand=True, padx=16, pady=(0, 8))
+
+        lb = tk.Listbox(
+            list_wrap,
+            font=self.font_mono,
+            activestyle="none",
+            selectmode="browse"
+        )
+        for name in removed_files:
+            lb.insert("end", name)
+        lb.pack(side="left", fill="both", expand=True)
+
+        sb = ttk.Scrollbar(list_wrap, orient="vertical", command=lb.yview)
+        sb.pack(side="right", fill="y")
+        lb.config(yscrollcommand=sb.set)
+
+        def do_restore():
+            sel = lb.curselection()
+            if not sel:
+                return
+            filename = lb.get(sel[0])
+            self.restore_removed_file_by_name(filename)
+            win.destroy()
+
+        self.create_primary_button(
+            win,
+            text=LANG_MAP[self.lang].get("restore_from_split", "Restore Deleted Frame"),
+            command=do_restore,
+            bg=COLORS["success"]
+        ).pack(fill="x", padx=16, pady=(0, 16))
+
+    def restore_removed_file_by_name(self, filename):
+        removed_img_path = os.path.join(self.project_root, "removed", self.current_split, "images", filename)
+        if not os.path.exists(removed_img_path):
+            return
+
+        split_img_dir = os.path.join(self.project_root, "images", self.current_split)
+        os.makedirs(split_img_dir, exist_ok=True)
+        target_img_path = self._unique_target_path(os.path.join(split_img_dir, filename))
+
+        base = os.path.splitext(filename)[0]
+        removed_lbl_dir = os.path.join(self.project_root, "removed", self.current_split, "labels")
+        split_lbl_dir = os.path.join(self.project_root, "labels", self.current_split)
+        os.makedirs(split_lbl_dir, exist_ok=True)
+
+        if self.image_files and self.img_pil:
+            self.save_current()
+
+        try:
+            shutil.move(removed_img_path, target_img_path)
+            for ext in (".txt", ".json"):
+                removed_lbl_path = os.path.join(removed_lbl_dir, f"{base}{ext}")
+                if os.path.exists(removed_lbl_path):
+                    target_lbl_path = self._unique_target_path(
+                        os.path.join(split_lbl_dir, f"{base}{ext}")
+                    )
+                    shutil.move(removed_lbl_path, target_lbl_path)
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+            return
+
+        self.load_split_data()
+        if target_img_path in self.image_files:
+            self.current_idx = self.image_files.index(target_img_path)
+            self.load_img()
+
+        msg = LANG_MAP[self.lang].get("restore_done", "Restored: {name}").format(name=os.path.basename(target_img_path))
+        messagebox.showinfo(LANG_MAP[self.lang]["title"], msg)
+
     def load_img(self):
         """載入影像"""
         if not self.image_files:
@@ -1816,7 +2127,6 @@ class UltimateLabeller:
         self.root.bind("<Control-z>", lambda e: self.undo())
         self.root.bind("<Control-Z>", lambda e: self.undo())
         self.root.bind("<Control-y>", lambda e: self.redo())
-        self.root.bind("<Control-Shift-Z>", lambda e: self.redo())
         self.root.bind("<Delete>", self.delete_selected)
 
     def on_canvas_resize(self, e):
