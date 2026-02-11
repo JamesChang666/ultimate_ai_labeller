@@ -136,6 +136,15 @@ LANG_MAP = {
         "dataset": "資料集",
         "lang_switch": "English",
         "delete": "刪除選取",
+        "remove_from_split": "從資料集中移除",
+        "remove_confirm": "從當前 {split} 中移除?",
+        "remove_done": "已移除: {name}",
+        "remove_none": "無可移除的圖片。",
+        "restore_from_split": "從資料集中還原",
+        "restore_none": "在當前資料集中未找到已刪除的圖片。",
+        "restore_title": "還原已刪除圖片",
+        "restore_select": "選擇要還原的圖片:",
+        "restore_done": "已還原: {name}",
     },
     "en": {
         "title": "AI Labeller Pro",
@@ -189,6 +198,7 @@ LANG_MAP = {
         "restore_title": "Restore Deleted Frame",
         "restore_select": "Select a frame to restore:",
         "restore_done": "Restored: {name}",
+        "select_image": "Select Image",
     }
 }
 
@@ -306,10 +316,13 @@ class UltimateLabeller:
         self.var_yolo_conf = tk.DoubleVar(value=0.5)
         self.var_fusion_iou = tk.DoubleVar(value=0.1)
         self.var_fusion_dist = tk.IntVar(value=30)
+        self.session_path = os.path.join(os.path.expanduser("~"), ".ai_labeller_session.json")
         
         self.setup_custom_style()
         self.setup_ui()
         self.bind_events()
+        self.root.protocol("WM_DELETE_WINDOW", self.on_app_close)
+        self.load_session_state()
     
     def setup_fonts(self):
         """設定專業字體"""
@@ -871,6 +884,24 @@ class UltimateLabeller:
             wraplength=260
         )
         self.lbl_filename.pack(fill="x")
+
+        tk.Label(
+            content,
+            text=LANG_MAP[self.lang].get("select_image", "Select Image"),
+            font=self.font_primary,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="w"
+        ).pack(fill="x", pady=(10, 6))
+
+        self.combo_image = ttk.Combobox(
+            content,
+            values=[],
+            state="readonly",
+            font=self.font_primary
+        )
+        self.combo_image.pack(fill="x")
+        self.combo_image.bind("<<ComboboxSelected>>", self.on_image_selected)
         
         # 進度條容器
         progress_frame = tk.Frame(content, bg=COLORS["bg_white"])
@@ -1168,16 +1199,85 @@ class UltimateLabeller:
         if not self.image_files:
             self.lbl_filename.config(text=LANG_MAP[self.lang]["no_img"])
             self.lbl_progress.config(text="0 / 0")
+            if hasattr(self, "combo_image"):
+                self.combo_image.configure(values=[])
+                self.combo_image.set("")
         else:
             filename = os.path.basename(self.image_files[self.current_idx])
             self.lbl_filename.config(text=filename)
             self.lbl_progress.config(
                 text=f"{self.current_idx + 1} / {len(self.image_files)}"
             )
+            self.refresh_image_dropdown()
         
         self.lbl_box_count.config(
             text=f"{LANG_MAP[self.lang]['boxes']}: {len(self.rects)}"
         )
+
+    def refresh_image_dropdown(self):
+        if not hasattr(self, "combo_image"):
+            return
+        names = [os.path.basename(p) for p in self.image_files]
+        self.combo_image.configure(values=names)
+        if not names:
+            self.combo_image.set("")
+            return
+        if 0 <= self.current_idx < len(names):
+            self.combo_image.set(names[self.current_idx])
+
+    def on_image_selected(self, e=None):
+        if not self.image_files:
+            return
+        idx = self.combo_image.current()
+        if idx < 0 or idx == self.current_idx:
+            return
+        self.save_current()
+        self.current_idx = idx
+        self.load_img()
+
+    def save_session_state(self):
+        data = {
+            "project_root": self.project_root,
+            "split": self.current_split,
+            "image_name": "",
+        }
+        if self.image_files and 0 <= self.current_idx < len(self.image_files):
+            data["image_name"] = os.path.basename(self.image_files[self.current_idx])
+        try:
+            with open(self.session_path, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+        except Exception:
+            pass
+
+    def load_session_state(self):
+        if not os.path.exists(self.session_path):
+            return
+        try:
+            with open(self.session_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            return
+
+        project_root = data.get("project_root", "")
+        split = data.get("split", "train")
+        image_name = data.get("image_name", "")
+
+        if not project_root or not os.path.exists(project_root):
+            return
+
+        if split not in ["train", "val", "test"]:
+            split = "train"
+        self.current_split = split
+        self.combo_split.set(split)
+        self.load_project_from_path(project_root, preferred_image=image_name, save_session=False)
+
+    def on_app_close(self):
+        try:
+            self.save_current()
+        except Exception:
+            pass
+        self.save_session_state()
+        self.root.destroy()
     
     def render(self):
         """渲染畫面"""
@@ -1755,6 +1855,7 @@ class UltimateLabeller:
             self.update_info_text()
             self.render()
 
+        self.save_session_state()
         done_msg = LANG_MAP[self.lang].get("remove_done", "Removed: {name}").format(name=image_name)
         messagebox.showinfo(LANG_MAP[self.lang]["title"], done_msg)
 
@@ -1909,6 +2010,7 @@ class UltimateLabeller:
                 self.run_yolo_detection()
         
         self.fit_image_to_canvas()
+        self.save_session_state()
     
     def save_current(self):
         """儲存當前標註"""
@@ -1929,19 +2031,25 @@ class UltimateLabeller:
                 h = (rect[3] - rect[1]) / H
                 f.write(f"{rect[4]} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n")
     
+    def load_project_from_path(self, directory, preferred_image=None, save_session=True):
+        self.project_root = directory.replace('\\', '/')
+        img_path = f"{self.project_root}/images/{self.current_split}"
+
+        if not os.path.exists(img_path):
+            os.makedirs(f"{self.project_root}/labels/{self.current_split}", exist_ok=True)
+
+        self.combo_split.set(self.current_split)
+        self.load_split_data(preferred_image=preferred_image)
+        if save_session:
+            self.save_session_state()
+
     def load_project_root(self):
         """載入專案"""
         directory = filedialog.askdirectory()
         if not directory:
             return
         
-        self.project_root = directory.replace('\\', '/')
-        img_path = f"{self.project_root}/images/{self.current_split}"
-        
-        if not os.path.exists(img_path):
-            os.makedirs(f"{self.project_root}/labels/{self.current_split}", exist_ok=True)
-        
-        self.load_split_data()
+        self.load_project_from_path(directory)
     
     def on_split_change(self, e=None):
         """資料集切換"""
@@ -1949,8 +2057,9 @@ class UltimateLabeller:
             self.save_current()
             self.current_split = self.combo_split.get()
             self.load_split_data()
+            self.save_session_state()
     
-    def load_split_data(self):
+    def load_split_data(self, preferred_image=None):
         """載入資料集"""
         img_path = f"{self.project_root}/images/{self.current_split}"
         
@@ -1959,10 +2068,32 @@ class UltimateLabeller:
                 f for f in glob.glob(f"{img_path}/*.*")
                 if f.lower().endswith(('.png', '.jpg', '.jpeg'))
             ])
+            if self.image_files:
+                if preferred_image:
+                    name_to_idx = {
+                        os.path.basename(path): i
+                        for i, path in enumerate(self.image_files)
+                    }
+                    self.current_idx = name_to_idx.get(preferred_image, 0)
+                else:
+                    self.current_idx = 0
+                self.load_img()
+            else:
+                self.current_idx = 0
+                self.img_pil = None
+                self.img_tk = None
+                self.rects = []
+                self.update_info_text()
+        else:
+            self.image_files = []
             self.current_idx = 0
-            self.load_img()
+            self.img_pil = None
+            self.img_tk = None
+            self.rects = []
+            self.update_info_text()
         
         self.render()
+        self.save_session_state()
     
     def autolabel_red(self):
         """紅字偵測"""
