@@ -1,20 +1,87 @@
 # Ultimate AI Labeller
 
-A high-efficiency image annotation tool precision-engineered for AI researchers.
-這是一個為 AI 研究者設計的高效率圖像標註工具。
-### Core Features主要功能
-* 🎯 **Precision Crosshairs**: Achieve pixel-perfect alignment with object edges.
-* 🌐 **Multilingual Support**: Seamless, real-time switching between English and Traditional Chinese.
-* 🤖 **AI-Powered Automation**: Integrated YOLO inference and adaptive learning for faster labeling.
-* ⌨️ **Keyboard Shortcuts**: Full support for Undo (`Ctrl+Z`), Redo (`Ctrl+Shift+Z`), Delete, and more.
-* 🎯 **十字定位線**：精準對齊物件邊緣。
-* 🌐 **多語系支援**：繁體中文與英文即時切換。
-* 🤖 **AI 自動化**：整合 YOLO 推論與自適應學習。
-* ⌨️ **快捷鍵操作**：支援 Undo (Ctrl+Z), Redo (Ctrl+Shift+Z), Delete 等。
-### Installation安裝方式
-Install the package via pip:
+Desktop image-annotation tool for computer vision datasets, built with Tkinter.
+
+## Features
+
+- Fast bounding-box labeling with mouse drag, resize handles, and move operations
+- Keyboard-first workflow (`F` next, `D` previous, `A` auto red-detection, `Space` fuse boxes)
+- Undo/redo support (`Ctrl+Z`, `Ctrl+Y`)
+- YOLO-assisted detection (Ultralytics) with confidence control
+- Box fusion utilities for overlapping/nearby boxes
+- Scrollable right settings panel for small window sizes
+- Remove bad frames from current split (`train`/`val`/`test`)
+- Restore removed frames from a selection dialog
+- Image jump selector (dropdown) to move directly to any image in the split
+- Session resume memory (reopens last project/split/image)
+- Language and theme switch support in-app
+
+## Dataset Layout
+
+The app expects a YOLO-style folder structure:
+
+```text
+your_project/
+  images/
+    train/
+    val/
+    test/
+  labels/
+    train/
+    val/
+    test/
+```
+
+Supported image extensions: `.png`, `.jpg`, `.jpeg`  
+Label format: YOLO `.txt` (`class cx cy w h` normalized).
+
+Removed frames are moved to:
+
+```text
+your_project/
+  removed/
+    train|val|test/
+      images/
+      labels/
+```
+
+## Install
 
 ```bash
-pip install ultimate-ai-labeller
+pip install -e .
+```
 
+or:
 
+```bash
+pip install .
+```
+
+## Run
+
+After install:
+
+```bash
+ai-labeller
+```
+
+Or directly:
+
+```bash
+python src/ai_labeller/main.py
+```
+
+## Shortcuts
+
+- `F`: save and next image
+- `D`: previous image
+- `A`: auto red detection
+- `Space`: fuse boxes
+- `Ctrl+Z`: undo
+- `Ctrl+Y`: redo
+- `Delete`: delete selected box
+
+## Notes
+
+- First YOLO use requires model weights (default: `yolov8n.pt`) available in your working directory or configured path.
+- Session state is saved to `~/.ai_labeller_session.json`.
