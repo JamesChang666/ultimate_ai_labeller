@@ -1,13 +1,25 @@
-import tkinter as tk
+﻿import tkinter as tk
 import ctypes
 import ctypes.wintypes
+import math
 from tkinter import filedialog, messagebox, ttk, simpledialog
 from PIL import Image, ImageTk, ImageDraw
 import os, glob, json, copy, datetime, shutil
 import numpy as np
 from collections import deque
+from typing import Any
 
-# 檢查庫環境
+from ai_labeller.core import (
+    AppConfig,
+    AppState,
+    SessionState,
+    HistoryManager,
+    atomic_write_json,
+    atomic_write_text,
+    setup_logging,
+)
+
+# 瑼Ｘ摨怎憓?
 try:
     import cv2
     HAS_CV2 = True
@@ -20,47 +32,57 @@ try:
 except ImportError:
     HAS_YOLO = False
 
-# ==================== 專業級配色方案 (參考 Figma/Adobe XD) ====================
+try:
+    import torch
+    from groundingdino.util.inference import Model as GroundingDINOModel
+    from segment_anything import sam_model_registry, SamPredictor
+    HAS_FOUNDATION_STACK = True
+except ImportError:
+    HAS_FOUNDATION_STACK = False
+
+LOGGER = setup_logging()
+
+# ==================== 撠平蝝??脫獢?(??Figma/Adobe XD) ====================
 COLORS = {
-    # 主色調 - 專業靛藍色系
-    "primary": "#5551FF",           # Figma 風格主色
+    # 銝餉隤?- 撠平???脩頂
+    "primary": "#5551FF",           # Figma 憸冽銝餉
     "primary_hover": "#4845E4",
     "primary_light": "#7B79FF",
     "primary_bg": "#F0F0FF",
     
-    # 功能色
-    "success": "#0FA958",           # 成功綠
-    "danger": "#F24822",            # 危險紅
-    "warning": "#FFAA00",           # 警告橙
-    "info": "#18A0FB",              # 資訊藍
+    # ???
+    "success": "#0FA958",           # ??蝬?
+    "danger": "#F24822",            # ?梢蝝?
+    "warning": "#FFAA00",           # 霅血?璈?
+    "info": "#18A0FB",              # 鞈???
     
-    # 中性色調 - Sketch 風格
-    "bg_dark": "#1E1E1E",           # 深色背景
-    "bg_medium": "#2C2C2C",         # 中等背景
-    "bg_light": "#F5F5F5",          # 淺色背景
-    "bg_white": "#FFFFFF",          # 白色背景
-    "bg_canvas": "#18191B",         # Canvas 背景
+    # 銝剜扯隤?- Sketch 憸冽
+    "bg_dark": "#1E1E1E",           # 瘛梯?
+    "bg_medium": "#2C2C2C",         # 銝剔??
+    "bg_light": "#F5F5F5",          # 瘛箄?
+    "bg_white": "#FFFFFF",          # ?質?
+    "bg_canvas": "#18191B",         # Canvas ?
     
-    # 文字色
+    # ????
     "text_primary": "#000000",
     "text_secondary": "#8E8E93",
     "text_tertiary": "#C7C7CC",
     "text_white": "#FFFFFF",
     
-    # 邊框與分隔線
+    # ??????
     "border": "#E5E5EA",
     "divider": "#38383A",
     
-    # 標註框配色 - 專業調色盤
-    "box_1": "#FF3B30",  # 紅
-    "box_2": "#FF9500",  # 橙
-    "box_3": "#FFCC00",  # 黃
-    "box_4": "#34C759",  # 綠
-    "box_5": "#5AC8FA",  # 青
-    "box_6": "#5856D6",  # 紫
-    "box_selected": "#00D4FF",  # 選中框
+    # 璅酉獢???- 撠平隤輯??
+    "box_1": "#FF3B30",  # 蝝?
+    "box_2": "#FF9500",  # 璈?
+    "box_3": "#FFCC00",  # 暺?
+    "box_4": "#34C759",  # 蝬?
+    "box_5": "#5AC8FA",  # ??
+    "box_6": "#5856D6",  # 蝝?
+    "box_selected": "#00D4FF",  # ?訾葉獢?
     
-    # 陰影
+    # ?啣蔣
     "shadow": "rgba(0, 0, 0, 0.1)",
 }
 
@@ -91,25 +113,25 @@ THEMES = {
     },
 }
 
-# ==================== 語言包 ====================
+# ==================== 隤???====================
 LANG_MAP = {
     "zh": {
         "title": "AI Labeller Pro",
         "load_proj": "載入專案",
-        "undo": "撤銷",
+        "undo": "復原",
         "redo": "重做",
-        "autolabel": "紅字偵測",
+        "autolabel": "紅色偵測",
         "fuse": "融合標註",
         "file_info": "檔案資訊",
-        "no_img": "尚未載入影像",
-        "filename": "檔案",
+        "no_img": "沒有影像",
+        "filename": "檔名",
         "progress": "進度",
-        "boxes": "標註框",
+        "boxes": "框數",
         "class_mgmt": "類別管理",
-        "current_class": "當前類別",
+        "current_class": "目前類別",
         "edit_classes": "編輯類別",
-        "reassign_class": "變更選取類別",
-        "clear_labels": "清除本張標註",
+        "reassign_class": "重設所選框類別",
+        "clear_labels": "清除目前影像標註",
         "add": "新增",
         "rename": "重新命名",
         "apply": "套用",
@@ -118,15 +140,15 @@ LANG_MAP = {
         "add_prompt": "類別名稱:",
         "current": "目前",
         "to": "改為",
-        "no_label_selected": "尚未選取標註。",
-        "no_classes_available": "沒有可用類別。",
+        "no_label_selected": "未選取任何標註框。",
+        "no_classes_available": "目前沒有可用類別。",
         "theme_light": "淺色模式",
         "theme_dark": "深色模式",
         "export_format": "匯出格式",
         "ai_tools": "AI 工具",
         "auto_detect": "自動偵測",
-        "learning": "學習模式",
-        "propagate": "標籤傳遞",
+        "learning": "Learning",
+        "propagate": "沿用上一張",
         "run_detection": "執行偵測",
         "export": "匯出 COCO",
         "prev": "上一張",
@@ -135,16 +157,17 @@ LANG_MAP = {
         "shortcut_help": "快捷鍵說明",
         "dataset": "資料集",
         "lang_switch": "English",
-        "delete": "刪除選取",
-        "remove_from_split": "從資料集中移除",
-        "remove_confirm": "從當前 {split} 中移除?",
+        "delete": "刪除所選框",
+        "remove_from_split": "從此 split 移除",
+        "remove_confirm": "要從 {split} 移除目前影像嗎？",
         "remove_done": "已移除: {name}",
-        "remove_none": "無可移除的圖片。",
-        "restore_from_split": "從資料集中還原",
-        "restore_none": "在當前資料集中未找到已刪除的圖片。",
-        "restore_title": "還原已刪除圖片",
-        "restore_select": "選擇要還原的圖片:",
+        "remove_none": "目前沒有可移除影像。",
+        "restore_from_split": "還原刪除影像",
+        "restore_none": "此 split 沒有可還原影像。",
+        "restore_title": "還原刪除影像",
+        "restore_select": "選擇要還原的影像:",
         "restore_done": "已還原: {name}",
+        "select_image": "選擇影像",
     },
     "en": {
         "title": "AI Labeller Pro",
@@ -179,6 +202,7 @@ LANG_MAP = {
         "ai_tools": "AI Tools",
         "auto_detect": "Auto Detect",
         "learning": "Learning",
+        "foundation_mode": "Foundation Assist",
         "propagate": "Propagate",
         "run_detection": "Run Detection",
         "export": "Export COCO",
@@ -199,99 +223,40 @@ LANG_MAP = {
         "restore_select": "Select a frame to restore:",
         "restore_done": "Restored: {name}",
         "select_image": "Select Image",
-    }
+    },
 }
 
-# ==================== 核心運算 ====================
-class BoundingBoxCore:
-    @staticmethod
-    def calculate_iou(box1, box2):
-        x1_1, y1_1, x2_1, y2_1 = box1[:4]
-        x1_2, y1_2, x2_2, y2_2 = box2[:4]
-        x1_i = max(x1_1, x1_2)
-        y1_i = max(y1_1, y1_2)
-        x2_i = min(x2_1, x2_2)
-        y2_i = min(y2_1, y2_2)
-        
-        if x2_i < x1_i or y2_i < y1_i:
-            return 0.0
-        
-        inter = (x2_i - x1_i) * (y2_i - y1_i)
-        u = (x2_1 - x1_1) * (y2_1 - y1_1) + (x2_2 - x1_2) * (y2_2 - y1_2) - inter
-        return inter / u if u > 0 else 0.0
-
-    @staticmethod
-    def fuse_list(boxes, iou_thresh, dist_thresh):
-        if len(boxes) <= 1:
-            return boxes
-        
-        keep_fusing = True
-        while keep_fusing:
-            keep_fusing = False
-            merged, used = [], [False] * len(boxes)
-            
-            for i in range(len(boxes)):
-                if used[i]:
-                    continue
-                    
-                curr = boxes[i]
-                used[i] = True
-                
-                for j in range(i + 1, len(boxes)):
-                    if not used[j]:
-                        should_merge = BoundingBoxCore.calculate_iou(curr, boxes[j]) > iou_thresh
-                        
-                        if not should_merge:
-                            h_dist = max(0, max(curr[0], boxes[j][0]) - min(curr[2], boxes[j][2]))
-                            v_overlap = min(curr[3], boxes[j][3]) - max(curr[1], boxes[j][1])
-                            if v_overlap > 0 and h_dist <= dist_thresh:
-                                should_merge = True
-                        
-                        if should_merge:
-                            curr = [
-                                min(curr[0], boxes[j][0]),
-                                min(curr[1], boxes[j][1]),
-                                max(curr[2], boxes[j][2]),
-                                max(curr[3], boxes[j][3]),
-                                curr[4]
-                            ]
-                            used[j] = True
-                            keep_fusing = True
-                
-                merged.append(curr)
-            
-            boxes = merged
-        
-        return boxes
-
-# ==================== 主程式 ====================
+# ==================== 銝餌?撘?====================
 class UltimateLabeller:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.lang = "zh"
+        self.lang = "en"
         self.theme = "dark"
+        self.config = AppConfig()
+        self.state = AppState()
+        self.history_manager = HistoryManager()
+        self.logger = setup_logging(os.path.join(os.path.expanduser("~"), ".ai_labeller.log"))
+
         self.root.title(LANG_MAP[self.lang]["title"])
-        self.root.geometry("1100x700")
-        self.root.minsize(900, 600)
+        self.root.geometry(self.config.default_window_size)
+        self.root.minsize(self.config.min_window_width, self.config.min_window_height)
         
-        # 設定自定義字體
+        # 閮剖??芸?蝢拙?擃?
         self.setup_fonts()
         self.apply_theme(self.theme, rebuild=False)
         self._tooltip_after_id = None
         self._tooltip_win = None
         
-        # --- 核心資料 ---
-        self.project_root = ""
-        self.current_split = "train"
-        self.image_files = []
-        self.current_idx = 0
-        self.rects = []  # [x1, y1, x2, y2, cid]
-        self.class_names = ["text", "figure", "table"]
-        self.history = []
-        self.redo_stack = []
-        self.learning_mem = deque(maxlen=20)
+        # --- ?詨?鞈? ---
+        self.project_root = self.state.project_root
+        self.current_split = self.state.current_split
+        self.image_files = self.state.image_files
+        self.current_idx = self.state.current_idx
+        self.rects = self.state.rects  # [x1, y1, x2, y2, cid]
+        self.class_names = self.state.class_names
+        self.learning_mem = deque(maxlen=self.config.max_learning_memory)
         
-        # --- 視圖狀態 ---
+        # --- 閬????---
         self.scale = 1.0
         self.offset_x = 0
         self.offset_y = 0
@@ -303,20 +268,27 @@ class UltimateLabeller:
         self.drag_start = None
         self.temp_rect_coords = None
         self.mouse_pos = (0, 0)
-        self.HANDLE_SIZE = 8
+        self.HANDLE_SIZE = self.config.handle_size
         self.show_all_labels = True
+        self._cursor_line_x: int | None = None
+        self._cursor_line_y: int | None = None
+        self._cursor_text_id: int | None = None
+        self._cursor_bg_id: int | None = None
         
-        # --- AI 參數 ---
+        # --- AI ? ---
         self.yolo_model = None
-        self.yolo_path = tk.StringVar(value="yolov8n.pt")
+        self.yolo_path = tk.StringVar(value=self.config.yolo_model_path)
+        self.det_model_mode = tk.StringVar(value="Official YOLO26m.pt")
+        self._loaded_model_key: tuple[str, str] | None = None
         self.var_export_format = tk.StringVar(value="YOLO (.txt)")
         self.var_auto_yolo = tk.BooleanVar(value=False)
-        self.var_learning = tk.BooleanVar(value=False)
         self.var_propagate = tk.BooleanVar(value=False)
-        self.var_yolo_conf = tk.DoubleVar(value=0.5)
-        self.var_fusion_iou = tk.DoubleVar(value=0.1)
-        self.var_fusion_dist = tk.IntVar(value=30)
-        self.session_path = os.path.join(os.path.expanduser("~"), ".ai_labeller_session.json")
+        self.var_yolo_conf = tk.DoubleVar(value=self.config.default_yolo_conf)
+        self.session_path = os.path.join(os.path.expanduser("~"), self.config.session_file_name)
+        self.foundation_dino = None
+        self.foundation_sam_predictor = None
+        self._uncertainty_cache: dict[str, float] = {}
+        self._active_scan_offset = 0
         
         self.setup_custom_style()
         self.setup_ui()
@@ -325,7 +297,7 @@ class UltimateLabeller:
         self.load_session_state()
     
     def setup_fonts(self):
-        """設定專業字體"""
+        """閮剖?撠平摮?"""
         import platform
         system = platform.system()
         
@@ -346,11 +318,11 @@ class UltimateLabeller:
             self.font_mono = ("Ubuntu Mono", 9)
     
     def setup_custom_style(self):
-        """設定 ttk 樣式"""
+        """閮剖? ttk 璅??"""
         style = ttk.Style()
         style.theme_use('clam')
         
-        # 設定 Combobox
+        # 閮剖? Combobox
         style.configure("TCombobox",
             fieldbackground=COLORS["bg_white"],
             background=COLORS["bg_light"],
@@ -367,7 +339,7 @@ class UltimateLabeller:
         )
     
     def delete_selected(self, e=None):
-        """刪除選中的標註框"""
+        """?芷?訾葉??閮餅?"""
         if self.selected_idx is not None:
             self.push_history()
             self.rects.pop(self.selected_idx)
@@ -375,10 +347,10 @@ class UltimateLabeller:
             self.render()
     
     def setup_ui(self):
-        # ==================== 頂部工具欄 ====================
+        # ==================== ?撌亙甈?====================
         self.setup_toolbar()
         
-        # ==================== 側邊欄 ====================
+        # ==================== ?湧?甈?====================
         self.setup_sidebar()
         
         # ==================== Canvas ====================
@@ -392,22 +364,22 @@ class UltimateLabeller:
         self.canvas.pack(fill="both", expand=True)
     
     def setup_toolbar(self):
-        """設置頂部工具欄"""
+        """閮剔蔭?撌亙甈?"""
         toolbar = tk.Frame(self.root, bg=COLORS["bg_dark"], height=56)
         toolbar.pack(side="top", fill="x")
         toolbar.pack_propagate(False)
         
-        # 左側區域
+        # 撌血???
         left_frame = tk.Frame(toolbar, bg=COLORS["bg_dark"])
         left_frame.pack(side="left", fill="y", padx=16)
         
-        # Logo 和標題
+        # Logo ??憿?
         title_frame = tk.Frame(left_frame, bg=COLORS["bg_dark"])
         title_frame.pack(side="left", pady=12)
         
         tk.Label(
             title_frame,
-            text="●",
+            text="AI",
             font=("Arial", 20),
             fg=COLORS["primary"],
             bg=COLORS["bg_dark"]
@@ -421,22 +393,22 @@ class UltimateLabeller:
             bg=COLORS["bg_dark"]
         ).pack(side="left")
         
-        # 分隔線
+        # ??蝺?
         tk.Frame(
             left_frame,
             width=1,
             bg=COLORS["divider"]
         ).pack(side="left", fill="y", padx=16)
         
-        # 載入專案按鈕
+        # 頛撠???
         self.create_toolbar_button(
             left_frame,
-            text=f"📁  {LANG_MAP[self.lang]['load_proj']}",
+            text=f"??  {LANG_MAP[self.lang]['load_proj']}",
             command=self.load_project_root,
             bg=COLORS["primary"]
         ).pack(side="left", padx=4)
         
-        # Dataset 選擇器
+        # Dataset ?豢???
         dataset_frame = tk.Frame(left_frame, bg=COLORS["bg_dark"])
         dataset_frame.pack(side="left", padx=12)
         
@@ -459,21 +431,21 @@ class UltimateLabeller:
         self.combo_split.pack(side="left")
         self.combo_split.bind("<<ComboboxSelected>>", self.on_split_change)
         
-        # 中間區域 - 編輯工具
+        # 銝剝????- 蝺刻摩撌亙
         center_frame = tk.Frame(toolbar, bg=COLORS["bg_dark"])
         center_frame.pack(side="left", fill="y", padx=16)
         
-        # 撤銷/重做
+        # ?日/??
         self.create_toolbar_icon_button(
             center_frame,
-            text="↶",
+            text="U",
             command=self.undo,
             tooltip=LANG_MAP[self.lang]["undo"]
         ).pack(side="left", padx=2)
         
         self.create_toolbar_icon_button(
             center_frame,
-            text="↷",
+            text="R",
             command=self.redo,
             tooltip=LANG_MAP[self.lang]["redo"]
         ).pack(side="left", padx=2)
@@ -482,31 +454,23 @@ class UltimateLabeller:
             side="left", fill="y", padx=8
         )
         
-        # AI 工具
+        # AI 撌亙
         self.create_toolbar_icon_button(
             center_frame,
-            text="🔴",
+            text="?",
             command=self.autolabel_red,
             tooltip=LANG_MAP[self.lang]["autolabel"],
             bg=COLORS["danger"]
         ).pack(side="left", padx=2)
         
-        self.create_toolbar_icon_button(
-            center_frame,
-            text="🧩",
-            command=self.fuse_current,
-            tooltip=LANG_MAP[self.lang]["fuse"],
-            bg=COLORS["warning"]
-        ).pack(side="left", padx=2)
-        
-        # 右側區域
+        # ?喳???
         right_frame = tk.Frame(toolbar, bg=COLORS["bg_dark"])
         right_frame.pack(side="right", fill="y", padx=16)
 
-        # 快捷鍵說明圖示（滑鼠停留 1 秒顯示）
+        # 敹急?菔牧??蝷綽?皛??? 1 蝘＊蝷綽?
         self.create_help_icon(right_frame).pack(side="right", padx=4, pady=12)
 
-        # 主題切換
+        # 銝駁???
         self.create_toolbar_button(
             right_frame,
             text=self.get_theme_switch_label(),
@@ -514,16 +478,16 @@ class UltimateLabeller:
             bg=COLORS["bg_medium"]
         ).pack(side="right", padx=4, pady=12)
 
-        # 語言切換
+        # 隤???
         self.create_toolbar_button(
             right_frame,
-            text=f"🌐  {LANG_MAP[self.lang]['lang_switch']}",
+            text=f"??  {LANG_MAP[self.lang]['lang_switch']}",
             command=self.toggle_language,
             bg=COLORS["bg_medium"]
         ).pack(side="right", padx=4, pady=12)
     
     def create_toolbar_button(self, parent, text, command, bg=None):
-        """創建工具欄按鈕"""
+        """?萄遣撌亙甈???"""
         bg_val = bg or COLORS["bg_medium"]
         fg_val = self.toolbar_text_color(bg_val)
         btn = tk.Button(
@@ -541,7 +505,7 @@ class UltimateLabeller:
             highlightthickness=0
         )
         
-        # 懸停效果
+        # ?詨???
         def on_enter(e):
             btn.config(bg=COLORS["primary_hover"] if bg == COLORS["primary"] else COLORS["bg_medium"])
         
@@ -554,7 +518,7 @@ class UltimateLabeller:
         return btn
 
     def create_help_icon(self, parent):
-        """建立快捷鍵說明圖示"""
+        """撱箇?敹急?菔牧??蝷?"""
         btn = tk.Label(
             parent,
             text="?",
@@ -574,7 +538,6 @@ class UltimateLabeller:
             ("F", LANG_MAP[self.lang]["next"]),
             ("D", LANG_MAP[self.lang]["prev"]),
             ("A", LANG_MAP[self.lang]["autolabel"]),
-            ("Space", LANG_MAP[self.lang]["fuse"]),
             ("Ctrl+Z", LANG_MAP[self.lang]["undo"]),
             ("Ctrl+Y", LANG_MAP[self.lang]["redo"]),
             ("Del", LANG_MAP[self.lang]["delete"]),
@@ -684,7 +647,7 @@ class UltimateLabeller:
             self._tooltip_win = None
     
     def create_toolbar_icon_button(self, parent, text, command, tooltip="", bg=None):
-        """創建工具欄圖標按鈕"""
+        """?萄遣撌亙甈?璅???"""
         bg_val = bg or COLORS["bg_medium"]
         fg_val = self.toolbar_text_color(bg_val)
         btn = tk.Button(
@@ -702,7 +665,7 @@ class UltimateLabeller:
             highlightthickness=0
         )
         
-        # 懸停效果
+        # ?詨???
         def on_enter(e):
             if bg:
                 btn.config(bg=self.lighten_color(bg))
@@ -718,7 +681,7 @@ class UltimateLabeller:
         return btn
     
     def lighten_color(self, color):
-        """使顏色變亮"""
+        """雿輸??脰?鈭?"""
         if color == COLORS["danger"]:
             return "#FF6B54"
         elif color == COLORS["warning"]:
@@ -726,12 +689,12 @@ class UltimateLabeller:
         return color
     
     def setup_sidebar(self):
-        """設置側邊欄"""
+        """閮剔蔭?湧?甈?"""
         sidebar = tk.Frame(self.root, width=320, bg=COLORS["bg_light"])
         sidebar.pack(side="right", fill="y")
         sidebar.pack_propagate(False)
         
-        # 滾動容器
+        # 皛曉?摰孵
         self.sidebar_canvas = tk.Canvas(
             sidebar,
             bg=COLORS["bg_light"],
@@ -757,19 +720,19 @@ class UltimateLabeller:
         self.sidebar_canvas.bind("<Button-4>", lambda e: self.sidebar_canvas.yview_scroll(-1, "units"))
         self.sidebar_canvas.bind("<Button-5>", lambda e: self.sidebar_canvas.yview_scroll(1, "units"))
         
-        # ===== 檔案資訊卡片 =====
+        # ===== 瑼?鞈??∠? =====
         self.create_info_card(self.sidebar_scroll_frame)
         
-        # ===== 類別管理卡片 =====
+        # ===== 憿蝞∠??∠? =====
         self.create_class_card(self.sidebar_scroll_frame)
         
-        # ===== AI 工具卡片 =====
+        # ===== AI 撌亙?∠? =====
         self.create_ai_card(self.sidebar_scroll_frame)
         
-        # ===== 快捷鍵卡片 =====
+        # ===== 敹急?萄??=====
         self.create_shortcut_card(self.sidebar_scroll_frame)
         
-        # ===== 底部導航 =====
+        # ===== 摨撠 =====
         self.create_navigation(sidebar)
         self._bind_sidebar_mousewheel(self.sidebar_scroll_frame)
         
@@ -840,7 +803,7 @@ class UltimateLabeller:
         self.render()
     
     def create_card(self, parent, title=None):
-        """創建卡片容器"""
+        """?萄遣?∠?摰孵"""
         card = tk.Frame(
             parent,
             bg=COLORS["bg_white"],
@@ -849,7 +812,7 @@ class UltimateLabeller:
         )
         card.pack(fill="x", padx=16, pady=8)
         
-        # 添加微妙陰影效果（通過邊框模擬）
+        # 瘛餃?敺桀??啣蔣??嚗???璅⊥嚗?
         card_border = tk.Frame(card, bg=COLORS["border"], height=1)
         card_border.pack(fill="x", side="bottom")
         
@@ -870,10 +833,10 @@ class UltimateLabeller:
         return content
     
     def create_info_card(self, parent):
-        """創建檔案資訊卡片"""
+        """?萄遣瑼?鞈??∠?"""
         content = self.create_card(parent, LANG_MAP[self.lang]["file_info"])
         
-        # 檔案名稱
+        # 瑼??迂
         self.lbl_filename = tk.Label(
             content,
             text=LANG_MAP[self.lang]["no_img"],
@@ -903,11 +866,11 @@ class UltimateLabeller:
         self.combo_image.pack(fill="x")
         self.combo_image.bind("<<ComboboxSelected>>", self.on_image_selected)
         
-        # 進度條容器
+        # ?脣漲璇捆??
         progress_frame = tk.Frame(content, bg=COLORS["bg_white"])
         progress_frame.pack(fill="x", pady=(8, 0))
         
-        # 進度文字
+        # ?脣漲??
         self.lbl_progress = tk.Label(
             progress_frame,
             text="0 / 0",
@@ -917,7 +880,7 @@ class UltimateLabeller:
         )
         self.lbl_progress.pack(side="left")
         
-        # 標註框數量
+        # 璅酉獢??
         self.lbl_box_count = tk.Label(
             progress_frame,
             text=f"{LANG_MAP[self.lang]['boxes']}: 0",
@@ -928,10 +891,10 @@ class UltimateLabeller:
         self.lbl_box_count.pack(side="right")
     
     def create_class_card(self, parent):
-        """創建類別管理卡片"""
+        """?萄遣憿蝞∠??∠?"""
         content = self.create_card(parent, LANG_MAP[self.lang]["class_mgmt"])
         
-        # 當前類別標籤
+        # ?嗅?憿璅惜
         tk.Label(
             content,
             text=LANG_MAP[self.lang]["current_class"],
@@ -941,7 +904,7 @@ class UltimateLabeller:
             anchor="w"
         ).pack(fill="x", pady=(0, 8))
         
-        # 類別選擇器
+        # 憿?豢???
         self.combo_cls = ttk.Combobox(
             content,
             values=self.class_names,
@@ -952,21 +915,21 @@ class UltimateLabeller:
         self.combo_cls.pack(fill="x", pady=(0, 12))
         self.combo_cls.bind("<<ComboboxSelected>>", self.on_class_change_request)
         
-        # 編輯類別按鈕
+        # 蝺刻摩憿??
         self.create_primary_button(
             content,
             text=LANG_MAP[self.lang]["edit_classes"],
             command=self.edit_classes_table
         ).pack(fill="x", pady=(0, 12))
 
-        # 變更已標註類別
+        # 霈撌脫?閮駁???
         self.create_secondary_button(
             content,
             text=LANG_MAP[self.lang]["reassign_class"],
             command=self.reassign_labeled_class
         ).pack(fill="x", pady=(0, 12))
 
-        # 清除本張標註
+        # 皜?砍撐璅酉
         self.create_secondary_button(
             content,
             text=LANG_MAP[self.lang]["clear_labels"],
@@ -985,7 +948,7 @@ class UltimateLabeller:
             command=self.open_restore_removed_dialog
         ).pack(fill="x", pady=(0, 12))
         
-        # 匯出格式
+        # ?臬?澆?
         tk.Label(
             content,
             text=LANG_MAP[self.lang]["export_format"],
@@ -1004,10 +967,10 @@ class UltimateLabeller:
         ).pack(fill="x")
     
     def create_ai_card(self, parent):
-        """創建 AI 工具卡片"""
+        """?萄遣 AI 撌亙?∠?"""
         content = self.create_card(parent, LANG_MAP[self.lang]["ai_tools"])
         
-        # 複選框樣式
+        # 銴獢見撘?
         checkbox_style = {
             "bg": COLORS["bg_white"],
             "fg": COLORS["text_primary"],
@@ -1026,19 +989,58 @@ class UltimateLabeller:
         
         tk.Checkbutton(
             content,
-            text=LANG_MAP[self.lang]["learning"],
-            variable=self.var_learning,
-            **checkbox_style
-        ).pack(fill="x", pady=4)
-        
-        tk.Checkbutton(
-            content,
             text=LANG_MAP[self.lang]["propagate"],
             variable=self.var_propagate,
             **checkbox_style
         ).pack(fill="x", pady=4)
+
+        tk.Label(
+            content,
+            text=LANG_MAP[self.lang].get("detection_model", "Detection Model"),
+            font=self.font_primary,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="w"
+        ).pack(fill="x", pady=(10, 4))
+
+        self.combo_det_model = ttk.Combobox(
+            content,
+            textvariable=self.det_model_mode,
+            values=[
+                "Official YOLO26m.pt",
+                "Custom YOLO (v5/v7/v8/v9/v11/v26)",
+                "Custom RF-DETR",
+            ],
+            state="readonly",
+            font=self.font_primary
+        )
+        self.combo_det_model.pack(fill="x", pady=(0, 6))
+        self.combo_det_model.bind("<<ComboboxSelected>>", self.on_detection_model_mode_changed)
+
+        tk.Entry(
+            content,
+            textvariable=self.yolo_path,
+            font=self.font_primary,
+            relief="solid",
+            bd=1
+        ).pack(fill="x", pady=(0, 6))
+
+        picker_row = tk.Frame(content, bg=COLORS["bg_white"])
+        picker_row.pack(fill="x", pady=(0, 6))
+
+        self.create_secondary_button(
+            picker_row,
+            text=LANG_MAP[self.lang].get("browse_model", "Browse Model"),
+            command=self.browse_detection_model
+        ).pack(side="left", fill="x", expand=True, padx=(0, 4))
+
+        self.create_secondary_button(
+            picker_row,
+            text=LANG_MAP[self.lang].get("use_official_yolo26m", "Use Official yolo26m.pt"),
+            command=self.use_official_yolo26m
+        ).pack(side="left", fill="x", expand=True, padx=(4, 0))
         
-        # 執行偵測按鈕
+        # ?瑁??菜葫??
         self.create_primary_button(
             content,
             text=LANG_MAP[self.lang]["run_detection"],
@@ -1047,14 +1049,13 @@ class UltimateLabeller:
         ).pack(fill="x", pady=(12, 0))
     
     def create_shortcut_card(self, parent):
-        """創建快捷鍵卡片"""
+        """?萄遣敹急?萄??"""
         content = self.create_card(parent, LANG_MAP[self.lang]["shortcuts"])
         
         shortcuts = [
             ("F", LANG_MAP[self.lang]["next"]),
             ("D", LANG_MAP[self.lang]["prev"]),
             ("A", LANG_MAP[self.lang]["autolabel"]),
-            ("Space", LANG_MAP[self.lang]["fuse"]),
             ("Ctrl+Z", LANG_MAP[self.lang]["undo"]),
             ("Ctrl+Y", LANG_MAP[self.lang]["redo"]),
             ("Del", LANG_MAP[self.lang]["delete"])
@@ -1084,7 +1085,7 @@ class UltimateLabeller:
             ).pack(side="left")
     
     def create_navigation(self, parent):
-        """創建底部導航"""
+        """?萄遣摨撠"""
         nav_frame = tk.Frame(parent, bg=COLORS["bg_light"], height=80)
         nav_frame.pack(side="bottom", fill="x")
         nav_frame.pack_propagate(False)
@@ -1092,25 +1093,25 @@ class UltimateLabeller:
         btn_container = tk.Frame(nav_frame, bg=COLORS["bg_light"])
         btn_container.pack(fill="both", expand=True, padx=16, pady=16)
         
-        # 上一張
+        # 銝?撘?
         self.create_nav_button(
             btn_container,
-            text=f"← {LANG_MAP[self.lang]['prev']}",
+            text=f"??{LANG_MAP[self.lang]['prev']}",
             command=self.prev_img,
             side="left"
         )
         
-        # 下一張
+        # 銝?撘?
         self.create_nav_button(
             btn_container,
-            text=f"{LANG_MAP[self.lang]['next']} →",
+            text=f"{LANG_MAP[self.lang]['next']} >",
             command=self.save_and_next,
             side="right",
             primary=True
         )
     
     def create_primary_button(self, parent, text, command, bg=None):
-        """創建主要按鈕"""
+        """?萄遣銝餉???"""
         btn = tk.Button(
             parent,
             text=text,
@@ -1125,7 +1126,7 @@ class UltimateLabeller:
             highlightthickness=0
         )
         
-        # 懸停效果
+        # ?詨???
         original_bg = bg or COLORS["primary"]
         hover_bg = COLORS["primary_hover"] if not bg else self.lighten_color(bg)
         
@@ -1135,7 +1136,7 @@ class UltimateLabeller:
         return btn
 
     def create_secondary_button(self, parent, text, command):
-        """創建次要按鈕"""
+        """Create a secondary sidebar button."""
         btn = tk.Button(
             parent,
             text=text,
@@ -1155,7 +1156,7 @@ class UltimateLabeller:
         return btn
     
     def create_nav_button(self, parent, text, command, side, primary=False):
-        """創建導航按鈕"""
+        """?萄遣撠??"""
         bg = COLORS["primary"] if primary else COLORS["bg_white"]
         fg = COLORS["text_white"] if primary else COLORS["text_primary"]
         
@@ -1176,7 +1177,7 @@ class UltimateLabeller:
         if not primary:
             btn.config(highlightbackground=COLORS["border"], highlightcolor=COLORS["border"])
         
-        # 懸停效果
+        # ?詨???
         if primary:
             btn.bind("<Enter>", lambda e: btn.config(bg=COLORS["primary_hover"]))
             btn.bind("<Leave>", lambda e: btn.config(bg=COLORS["primary"]))
@@ -1190,12 +1191,12 @@ class UltimateLabeller:
             btn.pack(side="right", fill="both", expand=True, padx=(4, 0))
     
     def toggle_language(self):
-        """切換語言"""
+        """??隤?"""
         self.lang = "en" if self.lang == "zh" else "zh"
         self.rebuild_ui()
     
     def update_info_text(self):
-        """更新檔案資訊"""
+        """?湔瑼?鞈?"""
         if not self.image_files:
             self.lbl_filename.config(text=LANG_MAP[self.lang]["no_img"])
             self.lbl_progress.config(text="0 / 0")
@@ -1225,7 +1226,7 @@ class UltimateLabeller:
         if 0 <= self.current_idx < len(names):
             self.combo_image.set(names[self.current_idx])
 
-    def on_image_selected(self, e=None):
+    def on_image_selected(self, e: Any = None) -> None:
         if not self.image_files:
             return
         idx = self.combo_image.current()
@@ -1235,58 +1236,110 @@ class UltimateLabeller:
         self.current_idx = idx
         self.load_img()
 
-    def save_session_state(self):
-        data = {
-            "project_root": self.project_root,
-            "split": self.current_split,
-            "image_name": "",
-        }
+    def save_session_state(self) -> None:
+        state = SessionState(
+            project_root=self.project_root,
+            split=self.current_split,
+            image_name="",
+            detection_model_mode=self.det_model_mode.get(),
+            detection_model_path=self.yolo_path.get().strip(),
+        )
         if self.image_files and 0 <= self.current_idx < len(self.image_files):
-            data["image_name"] = os.path.basename(self.image_files[self.current_idx])
+            state.image_name = os.path.basename(self.image_files[self.current_idx])
         try:
-            with open(self.session_path, "w", encoding="utf-8") as f:
-                json.dump(data, f)
+            atomic_write_json(self.session_path, state.__dict__)
         except Exception:
-            pass
+            self.logger.exception("Failed to save session state")
 
-    def load_session_state(self):
+    def load_session_state(self) -> None:
         if not os.path.exists(self.session_path):
             return
         try:
             with open(self.session_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except Exception:
+            self.logger.exception("Failed to load session state")
             return
 
         project_root = data.get("project_root", "")
         split = data.get("split", "train")
         image_name = data.get("image_name", "")
+        model_mode = data.get("detection_model_mode", "Official YOLO26m.pt")
+        model_path = data.get("detection_model_path", self.config.yolo_model_path)
 
         if not project_root or not os.path.exists(project_root):
             return
 
         if split not in ["train", "val", "test"]:
             split = "train"
+        if model_mode not in {
+            "Official YOLO26m.pt",
+            "Custom YOLO (v5/v7/v8/v9/v11/v26)",
+            "Custom RF-DETR",
+        }:
+            model_mode = "Official YOLO26m.pt"
+        self.det_model_mode.set(model_mode)
+        if model_path:
+            self.yolo_path.set(model_path)
         self.current_split = split
         self.combo_split.set(split)
         self.load_project_from_path(project_root, preferred_image=image_name, save_session=False)
 
-    def on_app_close(self):
+    def on_detection_model_mode_changed(self, e: Any = None) -> None:
+        if self.det_model_mode.get() == "Official YOLO26m.pt":
+            self.yolo_path.set("yolo26m.pt")
+        self.yolo_model = None
+        self._loaded_model_key = None
+
+    def use_official_yolo26m(self) -> None:
+        self.det_model_mode.set("Official YOLO26m.pt")
+        self.yolo_path.set("yolo26m.pt")
+        self.yolo_model = None
+        self._loaded_model_key = None
+
+    def browse_detection_model(self) -> None:
+        model_path = filedialog.askopenfilename(
+            title="Select model",
+            filetypes=[
+                ("Model files", "*.pt *.onnx"),
+                ("PyTorch", "*.pt"),
+                ("ONNX", "*.onnx"),
+                ("All files", "*.*"),
+            ],
+        )
+        if not model_path:
+            return
+        self.yolo_path.set(model_path)
+        if "rfdetr" in os.path.basename(model_path).lower():
+            self.det_model_mode.set("Custom RF-DETR")
+        else:
+            self.det_model_mode.set("Custom YOLO (v5/v7/v8/v9/v11/v26)")
+        self.yolo_model = None
+        self._loaded_model_key = None
+
+    def on_app_close(self) -> None:
         try:
             self.save_current()
         except Exception:
-            pass
+            self.logger.exception("Failed while saving on close")
+        if self.img_pil is not None:
+            self.img_pil.close()
+            self.img_pil = None
         self.save_session_state()
         self.root.destroy()
-    
-    def render(self):
-        """渲染畫面"""
+
+    def render(self) -> None:
+        """皜脫??恍"""
         self.canvas.delete("all")
-        
+        self._cursor_line_x = None
+        self._cursor_line_y = None
+        self._cursor_text_id = None
+        self._cursor_bg_id = None
+
         if not self.img_pil:
             return
         
-        # 1. 繪製影像
+        # 1. 蝜芾ˊ敶勗?
         w = int(self.img_pil.width * self.scale)
         h = int(self.img_pil.height * self.scale)
         self.img_tk = ImageTk.PhotoImage(
@@ -1299,7 +1352,7 @@ class UltimateLabeller:
             anchor="nw"
         )
         
-        # 2. 繪製標註框
+        # 2. 蝜芾ˊ璅酉獢?
         box_colors = [
             COLORS["box_1"], COLORS["box_2"], COLORS["box_3"],
             COLORS["box_4"], COLORS["box_5"], COLORS["box_6"]
@@ -1313,14 +1366,14 @@ class UltimateLabeller:
             color = COLORS["box_selected"] if is_selected else box_colors[rect[4] % len(box_colors)]
             width = 3 if is_selected else 2
             
-            # 繪製矩形
+            # 蝜芾ˊ?拙耦
             self.canvas.create_rectangle(
                 x1, y1, x2, y2,
                 outline=color,
                 width=width
             )
             
-            # 繪製控制點（僅選中時）
+            # 蝜芾ˊ?批暺??銝剜?嚗?
             if is_selected:
                 for hx, hy in self.get_handles(rect):
                     cx, cy = self.img_to_canvas(hx, hy)
@@ -1335,17 +1388,17 @@ class UltimateLabeller:
                     )
             
             if self.show_all_labels:
-                # 繪製類別標籤（帶背景）
+                # 蝜芾ˊ憿璅惜嚗葆?嚗?
                 class_name = (
                     self.class_names[rect[4]]
                     if rect[4] < len(self.class_names)
                     else f"ID:{rect[4]}"
                 )
                 
-                # 計算標籤位置（在框的左上角上方）
-                label_y = max(y1 - 24, 8)  # 確保不超出畫面
+                # 閮?璅惜雿蔭嚗獢?撌虫?閫??對?
+                label_y = max(y1 - 24, 8)  # 蝣箔?銝??箇??
                 
-                # 繪製標籤背景
+                # 蝜芾ˊ璅惜?
                 text_id = self.canvas.create_text(
                     x1 + 8,
                     label_y + 4,
@@ -1368,7 +1421,7 @@ class UltimateLabeller:
                     )
                     self.canvas.tag_lower(bg_id, text_id)
         
-        # 3. 繪製臨時拉框
+        # 3. 蝜芾ˊ?冽???
         if self.temp_rect_coords:
             cx, cy, ex, ey = self.temp_rect_coords
             self.canvas.create_rectangle(
@@ -1378,81 +1431,98 @@ class UltimateLabeller:
                 dash=(6, 4)
             )
         
-        # 4. 繪製十字定位線（專業風格）
+        # 4. 蝜芾ˊ??摰?蝺?撠平憸冽嚗?
+        self.update_cursor_overlay()
+        
+        # ?湔鞈?憿舐內
+        self.update_info_text()
+    
+    # ==================== 鈭辣?? ====================
+    
+    def on_mouse_move(self, e: Any) -> None:
+        """皛?蝘餃?"""
+        self.mouse_pos = (e.x, e.y)
+        self.update_cursor_overlay()
+    
+    def update_cursor_overlay(self) -> None:
+        if not self.canvas:
+            return
+
         mx, my = self.mouse_pos
-        
-        # 垂直線
-        self.canvas.create_line(
-            mx, 0,
-            mx, self.root.winfo_height(),
-            fill=COLORS["primary"],
-            width=1,
-            dash=(2, 4)
-        )
-        
-        # 水平線
-        self.canvas.create_line(
-            0, my,
-            self.root.winfo_width(), my,
-            fill=COLORS["primary"],
-            width=1,
-            dash=(2, 4)
-        )
-        
-        # 座標提示（專業風格）
+        canvas_h = self.canvas.winfo_height()
+        canvas_w = self.canvas.winfo_width()
+
+        if self._cursor_line_x is None:
+            self._cursor_line_x = self.canvas.create_line(
+                mx, 0, mx, canvas_h, fill=COLORS["primary"], width=1, dash=(2, 4), tags="cursor_overlay"
+            )
+        else:
+            self.canvas.coords(self._cursor_line_x, mx, 0, mx, canvas_h)
+
+        if self._cursor_line_y is None:
+            self._cursor_line_y = self.canvas.create_line(
+                0, my, canvas_w, my, fill=COLORS["primary"], width=1, dash=(2, 4), tags="cursor_overlay"
+            )
+        else:
+            self.canvas.coords(self._cursor_line_y, 0, my, canvas_w, my)
+
         coord_text = f"{mx}, {my}"
-        coord_id = self.canvas.create_text(
-            mx + 12,
-            my - 12,
-            text=coord_text,
-            fill=COLORS["text_primary"] if self.theme == "light" else COLORS["text_white"],
-            font=self.font_mono,
-            anchor="nw"
-        )
-        
-        coord_bbox = self.canvas.bbox(coord_id)
-        if coord_bbox:
-            padding = 4
-            self.canvas.create_rectangle(
-                coord_bbox[0] - padding,
-                coord_bbox[1] - padding,
-                coord_bbox[2] + padding,
-                coord_bbox[3] + padding,
+        if self._cursor_text_id is None:
+            self._cursor_text_id = self.canvas.create_text(
+                mx + 12,
+                my - 12,
+                text=coord_text,
+                fill=COLORS["text_primary"] if self.theme == "light" else COLORS["text_white"],
+                font=self.font_mono,
+                anchor="nw",
+                tags="cursor_overlay",
+            )
+        else:
+            self.canvas.coords(self._cursor_text_id, mx + 12, my - 12)
+            self.canvas.itemconfig(self._cursor_text_id, text=coord_text)
+
+        coord_bbox = self.canvas.bbox(self._cursor_text_id)
+        if not coord_bbox:
+            return
+
+        padding = 4
+        bx1 = coord_bbox[0] - padding
+        by1 = coord_bbox[1] - padding
+        bx2 = coord_bbox[2] + padding
+        by2 = coord_bbox[3] + padding
+        if self._cursor_bg_id is None:
+            self._cursor_bg_id = self.canvas.create_rectangle(
+                bx1,
+                by1,
+                bx2,
+                by2,
                 fill=COLORS["bg_dark"],
                 outline=COLORS["primary"],
                 width=1,
-                tags="coord_bg"
+                tags="cursor_overlay",
             )
-            self.canvas.tag_lower("coord_bg", coord_id)
-        
-        # 更新資訊顯示
-        self.update_info_text()
-    
-    # ==================== 事件處理 ====================
-    
-    def on_mouse_move(self, e):
-        """滑鼠移動"""
-        self.mouse_pos = (e.x, e.y)
-        self.render()
-    
+        else:
+            self.canvas.coords(self._cursor_bg_id, bx1, by1, bx2, by2)
+        self.canvas.tag_lower(self._cursor_bg_id, self._cursor_text_id)
+
     def on_mouse_down(self, e):
-        """滑鼠按下"""
+        """皛???"""
         if not self.img_pil:
             return
         
         ix, iy = self.canvas_to_img(e.x, e.y)
         
-        # 檢查是否點擊控制點
+        # 瑼Ｘ?臬暺??批暺?
         if self.selected_idx is not None:
             for i, (hx, hy) in enumerate(self.get_handles(self.rects[self.selected_idx])):
                 dist = np.sqrt((ix - hx) ** 2 + (iy - hy) ** 2) * self.scale
-                if dist < 15:
+                if dist < self.config.mouse_handle_hit_radius_px:
                     self.active_handle = i
                     self.drag_start = (ix, iy)
                     self.push_history()
                     return
         
-        # 檢查是否點擊框
+        # 瑼Ｘ?臬暺?獢?
         clicked_idx = None
         for i, rect in enumerate(self.rects):
             if (min(rect[0], rect[2]) < ix < max(rect[0], rect[2]) and
@@ -1473,7 +1543,7 @@ class UltimateLabeller:
         self.render()
     
     def on_mouse_drag(self, e):
-        """滑鼠拖曳"""
+        """皛??"""
         self.mouse_pos = (e.x, e.y)
         
         if not self.img_pil or not self.drag_start:
@@ -1483,12 +1553,12 @@ class UltimateLabeller:
         ix, iy = self.canvas_to_img(e.x, e.y)
         W, H = self.img_pil.width, self.img_pil.height
         
-        # 限制在圖片範圍內
+        # ??典????
         ix = max(0, min(W, ix))
         iy = max(0, min(H, iy))
         
         if self.selected_idx is not None and self.active_handle is not None:
-            # 調整控制點
+            # 隤踵?批暺?
             rect = self.rects[self.selected_idx]
             if self.active_handle in [0, 6, 7]:
                 rect[0] = ix
@@ -1500,12 +1570,12 @@ class UltimateLabeller:
                 rect[3] = iy
         
         elif self.is_moving_box:
-            # 移動框
+            # 蝘餃?獢?
             dx = ix - self.drag_start[0]
             dy = iy - self.drag_start[1]
             rect = self.rects[self.selected_idx]
             
-            # 邊界檢查
+            # ??瑼Ｘ
             if rect[0] + dx < 0:
                 dx = -rect[0]
             if rect[2] + dx > W:
@@ -1522,7 +1592,7 @@ class UltimateLabeller:
             self.drag_start = (ix, iy)
         
         else:
-            # 拉新框
+            # ?獢?
             if self.temp_rect_coords:
                 self.temp_rect_coords = (
                     self.temp_rect_coords[0],
@@ -1534,7 +1604,7 @@ class UltimateLabeller:
         self.render()
     
     def on_mouse_up(self, e):
-        """滑鼠放開"""
+        """皛??暸?"""
         if self.temp_rect_coords:
             ix, iy = self.canvas_to_img(e.x, e.y)
             new_box = self.clamp_box([
@@ -1545,7 +1615,7 @@ class UltimateLabeller:
                 self.combo_cls.current()
             ])
             
-            # 檢查框大小
+            # 瑼Ｘ獢之撠?
             if (new_box[2] - new_box[0]) > 2 and (new_box[3] - new_box[1]) > 2:
                 self.push_history()
                 self.rects.append(new_box)
@@ -1562,8 +1632,8 @@ class UltimateLabeller:
         self.render()
     
     def on_zoom(self, e):
-        """滾輪縮放"""
-        factor = 1.1 if e.delta > 0 else 0.9
+        """皛曇憚蝮格"""
+        factor = self.config.zoom_in_factor if e.delta > 0 else self.config.zoom_out_factor
         
         self.offset_x = e.x - (e.x - self.offset_x) * factor
         self.offset_y = e.y - (e.y - self.offset_y) * factor
@@ -1571,10 +1641,10 @@ class UltimateLabeller:
         
         self.render()
     
-    # ==================== 核心功能 ====================
+    # ==================== ?詨?? ====================
     
     def on_class_change_request(self, e=None):
-        """類別變更"""
+        """憿霈"""
         if self.selected_idx is not None:
             new_cid = self.combo_cls.current()
             if self.rects[self.selected_idx][4] != new_cid:
@@ -1583,7 +1653,7 @@ class UltimateLabeller:
                 self.render()
     
     def edit_classes_table(self):
-        """編輯類別表格"""
+        """蝺刻摩憿銵冽"""
         L = LANG_MAP[self.lang]
         
         win = tk.Toplevel(self.root)
@@ -1636,7 +1706,7 @@ class UltimateLabeller:
                 tree.selection_set(row)
                 rename()
         
-        # 按鈕
+        # ??
         btn_frame = tk.Frame(win, bg=COLORS["bg_light"])
         btn_frame.pack(fill="x", padx=20, pady=10)
         
@@ -1683,7 +1753,7 @@ class UltimateLabeller:
         refresh()
 
     def reassign_labeled_class(self):
-        """將選取的標註改成另一個類別"""
+        """撠??璅酉?寞??虫?????"""
         if self.selected_idx is None:
             messagebox.showinfo(LANG_MAP[self.lang]["class_mgmt"], LANG_MAP[self.lang]["no_label_selected"])
             return
@@ -1749,8 +1819,19 @@ class UltimateLabeller:
             self.render()
             win.destroy()
 
+        tk.Button(
+            win,
+            text=LANG_MAP[self.lang]["apply"],
+            command=apply_change,
+            bg=COLORS["primary"],
+            fg=COLORS["text_white"],
+            font=self.font_bold,
+            relief="flat",
+            pady=10
+        ).pack(fill="x", padx=20, pady=(20, 16))
+
     def clear_current_labels(self):
-        """清除本張圖所有標註"""
+        """皜?砍撐????閮?"""
         if not self.rects:
             return
         self.push_history()
@@ -1762,16 +1843,6 @@ class UltimateLabeller:
         self.temp_rect_coords = None
         self.render()
 
-        tk.Button(
-            win,
-            text=LANG_MAP[self.lang]["apply"],
-            command=apply_change,
-            bg=COLORS["primary"],
-            fg=COLORS["text_white"],
-            font=self.font_bold,
-            relief="flat",
-            pady=10
-        ).pack(fill="x", padx=20, pady=(20, 16))
     
     def _build_removed_path(self, kind, src_path):
         ext = os.path.splitext(src_path)[1]
@@ -1845,8 +1916,7 @@ class UltimateLabeller:
             self.img_pil = None
             self.img_tk = None
             self.rects = []
-            self.history = []
-            self.redo_stack = []
+            self.history_manager.clear()
             self.selected_idx = None
             self.active_handle = None
             self.is_moving_box = False
@@ -1966,43 +2036,55 @@ class UltimateLabeller:
         msg = LANG_MAP[self.lang].get("restore_done", "Restored: {name}").format(name=os.path.basename(target_img_path))
         messagebox.showinfo(LANG_MAP[self.lang]["title"], msg)
 
-    def load_img(self):
-        """載入影像"""
+    def load_img(self) -> None:
+        """頛敶勗?"""
         if not self.image_files:
             return
         
         path = self.image_files[self.current_idx]
         self.update_info_text()
-        self.img_pil = Image.open(path)
+        if self.img_pil is not None:
+            self.img_pil.close()
+            self.img_pil = None
+        try:
+            self.img_pil = Image.open(path)
+        except Exception:
+            self.logger.exception("Failed to load image: %s", path)
+            messagebox.showerror("Error", f"Failed to open image:\n{path}")
+            return
         
         prev_rects = copy.deepcopy(self.rects)
         self.rects = []
-        self.history = []
-        self.redo_stack = []
+        self.history_manager.clear()
         self.selected_idx = None
         self.active_handle = None
         self.is_moving_box = False
         self.drag_start = None
         self.temp_rect_coords = None
         
-        # 載入標註
+        # 頛璅酉
         base = os.path.splitext(os.path.basename(path))[0]
         label_path = f"{self.project_root}/labels/{self.current_split}/{base}.txt"
         
         if os.path.exists(label_path):
             W, H = self.img_pil.width, self.img_pil.height
-            with open(label_path, 'r') as f:
-                for line in f:
-                    parts = line.split()
-                    if len(parts) == 5:
-                        c, cx, cy, w, h = map(float, parts)
-                        self.rects.append([
-                            (cx - w / 2) * W,
-                            (cy - h / 2) * H,
-                            (cx + w / 2) * W,
-                            (cy + h / 2) * H,
-                            int(c)
-                        ])
+            try:
+                with open(label_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        parts = line.split()
+                        if len(parts) == 5:
+                            c, cx, cy, w, h = map(float, parts)
+                            self.rects.append([
+                                (cx - w / 2) * W,
+                                (cy - h / 2) * H,
+                                (cx + w / 2) * W,
+                                (cy + h / 2) * H,
+                                int(c)
+                            ])
+            except Exception:
+                self.logger.exception("Failed to parse label file: %s", label_path)
+                messagebox.showerror("Error", f"Failed to read label file: {label_path}")
+                self.rects = []
         else:
             if self.var_propagate.get():
                 self.rects = prev_rects
@@ -2012,8 +2094,8 @@ class UltimateLabeller:
         self.fit_image_to_canvas()
         self.save_session_state()
     
-    def save_current(self):
-        """儲存當前標註"""
+    def save_current(self) -> None:
+        """?脣??嗅?璅酉"""
         if not self.project_root or not self.img_pil:
             return
         
@@ -2023,13 +2105,19 @@ class UltimateLabeller:
         
         label_path = f"{self.project_root}/labels/{self.current_split}/{base}.txt"
         
-        with open(label_path, "w") as f:
-            for rect in self.rects:
-                cx = (rect[0] + rect[2]) / 2 / W
-                cy = (rect[1] + rect[3]) / 2 / H
-                w = (rect[2] - rect[0]) / W
-                h = (rect[3] - rect[1]) / H
-                f.write(f"{rect[4]} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n")
+        lines = []
+        for rect in self.rects:
+            cx = (rect[0] + rect[2]) / 2 / W
+            cy = (rect[1] + rect[3]) / 2 / H
+            w = (rect[2] - rect[0]) / W
+            h = (rect[3] - rect[1]) / H
+            lines.append(f"{rect[4]} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n")
+        try:
+            atomic_write_text(label_path, "".join(lines))
+        except Exception:
+            self.logger.exception("Failed to save label file: %s", label_path)
+            messagebox.showerror("Error", f"Failed to save label file:\n{label_path}")
+            return
     
     def load_project_from_path(self, directory, preferred_image=None, save_session=True):
         self.project_root = directory.replace('\\', '/')
@@ -2044,7 +2132,7 @@ class UltimateLabeller:
             self.save_session_state()
 
     def load_project_root(self):
-        """載入專案"""
+        """頛撠?"""
         directory = filedialog.askdirectory()
         if not directory:
             return
@@ -2052,7 +2140,7 @@ class UltimateLabeller:
         self.load_project_from_path(directory)
     
     def on_split_change(self, e=None):
-        """資料集切換"""
+        """鞈?????"""
         if self.project_root:
             self.save_current()
             self.current_split = self.combo_split.get()
@@ -2060,7 +2148,7 @@ class UltimateLabeller:
             self.save_session_state()
     
     def load_split_data(self, preferred_image=None):
-        """載入資料集"""
+        """頛鞈???"""
         img_path = f"{self.project_root}/images/{self.current_split}"
         
         if os.path.exists(img_path):
@@ -2096,7 +2184,7 @@ class UltimateLabeller:
         self.save_session_state()
     
     def autolabel_red(self):
-        """紅字偵測"""
+        """蝝??菜葫"""
         if not HAS_CV2 or not self.img_pil:
             return
         
@@ -2118,23 +2206,35 @@ class UltimateLabeller:
         
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
-            if w * h > 150:
+            if w * h > self.config.auto_label_min_area:
                 self.rects.append(self.clamp_box([
                     x, y, x + w, y + h,
                     self.combo_cls.current()
                 ]))
         
-        self.fuse_current()
+        self.render()
     
     def run_yolo_detection(self):
-        """執行 YOLO 偵測"""
+        """?瑁? YOLO ?菜葫"""
         if not HAS_YOLO or not self.img_pil:
             return
         
         try:
-            if not self.yolo_model:
-                self.yolo_model = YOLO(self.yolo_path.get())
-            
+            mode = self.det_model_mode.get()
+            if mode == "Official YOLO26m.pt":
+                model_path = "yolo26m.pt"
+            else:
+                model_path = self.yolo_path.get().strip()
+
+            if not model_path:
+                messagebox.showwarning("Model", "Please choose a model file first.")
+                return
+
+            loaded_key = (mode, model_path)
+            if self.yolo_model is None or self._loaded_model_key != loaded_key:
+                self.yolo_model = YOLO(model_path)
+                self._loaded_model_key = loaded_key
+
             results = self.yolo_model(
                 self.img_pil,
                 conf=self.var_yolo_conf.get(),
@@ -2153,27 +2253,19 @@ class UltimateLabeller:
                         self.combo_cls.current()
                     ]))
             
-            self.fuse_current()
-        except Exception as e:
-            print(f"YOLO detection error: {e}")
-    
-    def fuse_current(self):
-        """融合標註框"""
-        self.rects = BoundingBoxCore.fuse_list(
-            self.rects,
-            self.var_fusion_iou.get(),
-            self.var_fusion_dist.get()
-        )
-        self.render()
+            self.render()
+        except Exception:
+            self.logger.exception("YOLO detection failed")
+            messagebox.showerror("Error", "YOLO detection failed. See logs for details.")
     
     def export_full_coco(self):
-        """匯出 COCO"""
-        messagebox.showinfo("Export", "COCO 匯出功能保持不變")
+        """?臬 COCO"""
+        messagebox.showinfo("Export", "COCO ?臬?靽?銝?")
     
-    # ==================== 輔助函數 ====================
+    # ==================== 頛?賣 ====================
     
     def clamp_box(self, box):
-        """限制框在圖片範圍內"""
+        """?獢??蝭???"""
         if not self.img_pil:
             return box
         
@@ -2190,7 +2282,7 @@ class UltimateLabeller:
         ]
     
     def get_handles(self, rect):
-        """取得控制點位置"""
+        """???批暺?蝵?"""
         x1, y1, x2, y2 = rect[:4]
         xm = (x1 + x2) / 2
         ym = (y1 + y2) / 2
@@ -2201,46 +2293,41 @@ class UltimateLabeller:
         ]
     
     def canvas_to_img(self, x, y):
-        """Canvas 座標轉影像座標"""
+        """Canvas 摨扳?頧蔣?漣璅?"""
         return (x - self.offset_x) / self.scale, (y - self.offset_y) / self.scale
     
     def img_to_canvas(self, x, y):
-        """影像座標轉 Canvas 座標"""
+        """敶勗?摨扳?頧?Canvas 摨扳?"""
         return x * self.scale + self.offset_x, y * self.scale + self.offset_y
     
-    def push_history(self):
-        """儲存歷史"""
-        self.history.append(copy.deepcopy(self.rects))
-        self.redo_stack.clear()
+    def push_history(self) -> None:
+        """?脣?甇瑕"""
+        self.history_manager.push_snapshot(self.rects)
     
-    def undo(self):
-        """撤銷"""
-        if self.history:
-            self.redo_stack.append(copy.deepcopy(self.rects))
-            self.rects = self.history.pop()
+    def undo(self) -> None:
+        """?日"""
+        if self.history_manager.undo():
             self.render()
     
-    def redo(self):
-        """重做"""
-        if self.redo_stack:
-            self.history.append(copy.deepcopy(self.rects))
-            self.rects = self.redo_stack.pop()
+    def redo(self) -> None:
+        """??"""
+        if self.history_manager.redo():
             self.render()
     
     def save_and_next(self):
-        """儲存並下一張"""
+        """?脣?銝虫?銝撘?"""
         self.save_current()
         self.current_idx = min(len(self.image_files) - 1, self.current_idx + 1)
         self.load_img()
     
     def prev_img(self):
-        """上一張"""
+        """銝?撘?"""
         self.save_current()
         self.current_idx = max(0, self.current_idx - 1)
         self.load_img()
     
     def bind_events(self):
-        """綁定事件"""
+        """蝬?鈭辣"""
         self.canvas.bind("<Motion>", self.on_mouse_move)
         self.canvas.bind("<ButtonPress-1>", self.on_mouse_down)
         self.canvas.bind("<B1-Motion>", self.on_mouse_drag)
@@ -2254,7 +2341,6 @@ class UltimateLabeller:
         self.root.bind("<Key-D>", lambda e: self.prev_img())
         self.root.bind("<Key-a>", lambda e: self.autolabel_red())
         self.root.bind("<Key-A>", lambda e: self.autolabel_red())
-        self.root.bind("<space>", lambda e: self.fuse_current())
         self.root.bind("<Control-z>", lambda e: self.undo())
         self.root.bind("<Control-Z>", lambda e: self.undo())
         self.root.bind("<Control-y>", lambda e: self.redo())
@@ -2279,7 +2365,7 @@ class UltimateLabeller:
         self.offset_y = (ch - ih * scale) / 2
         self.render()
 
-# ==================== 主程式入口 ====================
+# ==================== 銝餌?撘??====================
 def main():
     root = tk.Tk()
     app = UltimateLabeller(root)

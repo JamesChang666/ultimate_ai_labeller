@@ -1,24 +1,26 @@
 # Ultimate AI Labeller
 
-Desktop image-annotation tool for computer vision datasets, built with Tkinter.
+Desktop image annotation tool for object detection datasets (Tkinter + Ultralytics).
 
 ## Features
 
-- Fast bounding-box labeling with mouse drag, resize handles, and move operations
-- Keyboard-first workflow (`F` next, `D` previous, `A` auto red-detection, `Space` fuse boxes)
-- Undo/redo support (`Ctrl+Z`, `Ctrl+Y`)
-- YOLO-assisted detection (Ultralytics) with confidence control
-- Box fusion utilities for overlapping/nearby boxes
-- Scrollable right settings panel for small window sizes
-- Remove bad frames from current split (`train`/`val`/`test`)
-- Restore removed frames from a selection dialog
-- Image jump selector (dropdown) to move directly to any image in the split
-- Session resume memory (reopens last project/split/image)
-- Language and theme switch support in-app
+- Bounding-box annotation with drag, move, and resize handles
+- Undo/redo history (`Ctrl+Z`, `Ctrl+Y`)
+- Image navigation (`F` next/save, `D` previous)
+- Auto red-region proposal (`A`)
+- YOLO detection from UI (`Run Detection`)
+- Model source selection:
+  - Official `yolo26m.pt`
+  - Custom YOLO weights (`.pt`)
+  - Custom RF-DETR weights (via Ultralytics interface)
+- Auto-detect and propagate options
+- Scrollable right settings panel
+- Remove/restore bad frames from split
+- Image dropdown jump
+- Session resume (last project/split/image/model settings)
+- English/Chinese UI switch and light/dark theme
 
-## Dataset Layout
-
-The app expects a YOLO-style folder structure:
+## Dataset Structure
 
 ```text
 your_project/
@@ -32,8 +34,8 @@ your_project/
     test/
 ```
 
-Supported image extensions: `.png`, `.jpg`, `.jpeg`  
-Label format: YOLO `.txt` (`class cx cy w h` normalized).
+- Image extensions: `.png`, `.jpg`, `.jpeg`
+- Label format: YOLO txt (`class cx cy w h`, normalized)
 
 Removed frames are moved to:
 
@@ -48,24 +50,22 @@ your_project/
 ## Install
 
 ```bash
-pip install -e .
-```
-
-or:
-
-```bash
 pip install .
 ```
 
-## Run
+For development:
 
-After install:
+```bash
+pip install -e .
+```
+
+## Run
 
 ```bash
 ai-labeller
 ```
 
-Or directly:
+Or:
 
 ```bash
 python src/ai_labeller/main.py
@@ -76,12 +76,11 @@ python src/ai_labeller/main.py
 - `F`: save and next image
 - `D`: previous image
 - `A`: auto red detection
-- `Space`: fuse boxes
 - `Ctrl+Z`: undo
 - `Ctrl+Y`: redo
 - `Delete`: delete selected box
 
 ## Notes
 
-- First YOLO use requires model weights (default: `yolov8n.pt`) available in your working directory or configured path.
-- Session state is saved to `~/.ai_labeller_session.json`.
+- Default detection model mode is `Official YOLO26m.pt`.
+- Session file: `~/.ai_labeller_session.json`.
