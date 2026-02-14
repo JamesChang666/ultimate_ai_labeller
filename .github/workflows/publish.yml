@@ -2,8 +2,11 @@ name: Publish to PyPI
 
 on:
   push:
+    branches:
+      - main
     tags:
-      - 'v*' 
+      - "v*"
+  workflow_dispatch:
 
 jobs:
   build-n-publish:
@@ -30,3 +33,5 @@ jobs:
 
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        skip-existing: true
