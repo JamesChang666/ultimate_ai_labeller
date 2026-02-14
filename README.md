@@ -49,6 +49,20 @@ your_project/
 
 ## Install
 
+From PyPI:
+
+```bash
+pip install ultimate_ai_labeller
+```
+
+From local wheel:
+
+```bash
+pip install dist/ultimate_ai_labeller-0.1.3-py3-none-any.whl
+```
+
+From source:
+
 ```bash
 pip install .
 ```
