@@ -2,6 +2,7 @@
 import ctypes
 import ctypes.wintypes
 import math
+from importlib import resources
 from tkinter import filedialog, messagebox, ttk, simpledialog
 from PIL import Image, ImageTk, ImageDraw
 import os, glob, json, copy, datetime, shutil
@@ -278,7 +279,7 @@ class UltimateLabeller:
         # --- AI ? ---
         self.yolo_model = None
         self.yolo_path = tk.StringVar(value=self.config.yolo_model_path)
-        self.det_model_mode = tk.StringVar(value="Official YOLO26m.pt")
+        self.det_model_mode = tk.StringVar(value="Official YOLO26n.pt (Bundled)")
         self._loaded_model_key: tuple[str, str] | None = None
         self.var_export_format = tk.StringVar(value="YOLO (.txt)")
         self.var_auto_yolo = tk.BooleanVar(value=False)
@@ -1007,7 +1008,7 @@ class UltimateLabeller:
             content,
             textvariable=self.det_model_mode,
             values=[
-                "Official YOLO26m.pt",
+                "Official YOLO26n.pt (Bundled)",
                 "Custom YOLO (v5/v7/v8/v9/v11/v26)",
                 "Custom RF-DETR",
             ],
@@ -1036,8 +1037,8 @@ class UltimateLabeller:
 
         self.create_secondary_button(
             picker_row,
-            text=LANG_MAP[self.lang].get("use_official_yolo26m", "Use Official yolo26m.pt"),
-            command=self.use_official_yolo26m
+            text=LANG_MAP[self.lang].get("use_official_yolo26m", "Use Official yolo26n.pt"),
+            command=self.use_official_yolo26n
         ).pack(side="left", fill="x", expand=True, padx=(4, 0))
         
         # ?瑁??菜葫??
@@ -1264,7 +1265,7 @@ class UltimateLabeller:
         project_root = data.get("project_root", "")
         split = data.get("split", "train")
         image_name = data.get("image_name", "")
-        model_mode = data.get("detection_model_mode", "Official YOLO26m.pt")
+        model_mode = data.get("detection_model_mode", "Official YOLO26n.pt (Bundled)")
         model_path = data.get("detection_model_path", self.config.yolo_model_path)
 
         if not project_root or not os.path.exists(project_root):
@@ -1273,11 +1274,11 @@ class UltimateLabeller:
         if split not in ["train", "val", "test"]:
             split = "train"
         if model_mode not in {
-            "Official YOLO26m.pt",
+            "Official YOLO26n.pt (Bundled)",
             "Custom YOLO (v5/v7/v8/v9/v11/v26)",
             "Custom RF-DETR",
         }:
-            model_mode = "Official YOLO26m.pt"
+            model_mode = "Official YOLO26n.pt (Bundled)"
         self.det_model_mode.set(model_mode)
         if model_path:
             self.yolo_path.set(model_path)
@@ -1286,16 +1287,25 @@ class UltimateLabeller:
         self.load_project_from_path(project_root, preferred_image=image_name, save_session=False)
 
     def on_detection_model_mode_changed(self, e: Any = None) -> None:
-        if self.det_model_mode.get() == "Official YOLO26m.pt":
-            self.yolo_path.set("yolo26m.pt")
+        if self.det_model_mode.get() == "Official YOLO26n.pt (Bundled)":
+            self.yolo_path.set("yolo26n.pt")
         self.yolo_model = None
         self._loaded_model_key = None
 
-    def use_official_yolo26m(self) -> None:
-        self.det_model_mode.set("Official YOLO26m.pt")
-        self.yolo_path.set("yolo26m.pt")
+    def use_official_yolo26n(self) -> None:
+        self.det_model_mode.set("Official YOLO26n.pt (Bundled)")
+        self.yolo_path.set("yolo26n.pt")
         self.yolo_model = None
         self._loaded_model_key = None
+
+    def _resolve_official_model_path(self) -> str:
+        try:
+            packaged = resources.files("ai_labeller").joinpath("models", self.config.yolo_model_path)
+            if packaged.is_file():
+                return str(packaged)
+        except Exception:
+            pass
+        return self.config.yolo_model_path
 
     def browse_detection_model(self) -> None:
         model_path = filedialog.askopenfilename(
@@ -2221,8 +2231,8 @@ class UltimateLabeller:
         
         try:
             mode = self.det_model_mode.get()
-            if mode == "Official YOLO26m.pt":
-                model_path = "yolo26m.pt"
+            if mode == "Official YOLO26n.pt (Bundled)":
+                model_path = self._resolve_official_model_path()
             else:
                 model_path = self.yolo_path.get().strip()
 

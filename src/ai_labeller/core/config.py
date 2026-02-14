@@ -7,7 +7,7 @@ class AppConfig:
     min_window_height: int = 600
     default_window_size: str = "1100x700"
     handle_size: int = 8
-    yolo_model_path: str = "yolo26m.pt"
+    yolo_model_path: str = "yolo26n.pt"
     default_yolo_conf: float = 0.5
     max_learning_memory: int = 20
     auto_label_min_area: int = 150

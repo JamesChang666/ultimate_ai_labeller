@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ultimate_ai_labeller"
-version = "0.1.2"
+version = "0.1.3"
 description = "AI Labelling tool for computer vision"
 readme = "README.md"
 authors = [{ name="James Chang", email="james2738999@gmail.com" }]
@@ -18,3 +18,12 @@ dependencies = [
 [project.scripts]
 # 設定指令名稱：安裝後在終端機輸入 ai-labeller 就能啟動
 ai-labeller = "ai_labeller.main:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+ai_labeller = ["models/*.pt"]

@@ -10,7 +10,7 @@ Desktop image annotation tool for object detection datasets (Tkinter + Ultralyti
 - Auto red-region proposal (`A`)
 - YOLO detection from UI (`Run Detection`)
 - Model source selection:
-  - Official `yolo26m.pt`
+  - Official bundled `yolo26n.pt`
   - Custom YOLO weights (`.pt`)
   - Custom RF-DETR weights (via Ultralytics interface)
 - Auto-detect and propagate options
@@ -82,5 +82,6 @@ python src/ai_labeller/main.py
 
 ## Notes
 
-- Default detection model mode is `Official YOLO26m.pt`.
+- Default detection model mode is `Official YOLO26n.pt (Bundled)`.
+- The package includes `yolo26n.pt`, so first-run model download is not required.
 - Session file: `~/.ai_labeller_session.json`.

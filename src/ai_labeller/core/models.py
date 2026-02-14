@@ -11,8 +11,8 @@ class SessionState:
     project_root: str = ""
     split: str = "train"
     image_name: str = ""
-    detection_model_mode: str = "Official YOLO26m.pt"
-    detection_model_path: str = "yolo26m.pt"
+    detection_model_mode: str = "Official YOLO26n.pt (Bundled)"
+    detection_model_path: str = "yolo26n.pt"
 
 
 @dataclass
