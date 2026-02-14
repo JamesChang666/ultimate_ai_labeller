@@ -148,9 +148,13 @@ LANG_MAP = {
         "export_format": "匯出格式",
         "ai_tools": "AI 工具",
         "auto_detect": "自動偵測",
-        "learning": "Learning",
+        "learning": "學習",
+        "foundation_mode": "基礎模型輔助",
         "propagate": "沿用上一張",
         "run_detection": "執行偵測",
+        "detection_model": "偵測模型",
+        "browse_model": "瀏覽模型",
+        "use_official_yolo26m": "使用官方 yolo26n.pt",
         "export": "匯出 COCO",
         "prev": "上一張",
         "next": "下一張",
@@ -159,7 +163,7 @@ LANG_MAP = {
         "dataset": "資料集",
         "lang_switch": "English",
         "delete": "刪除所選框",
-        "remove_from_split": "從此 split 移除",
+        "remove_from_split": "從此資料分割移除",
         "remove_confirm": "要從 {split} 移除目前影像嗎？",
         "remove_done": "已移除: {name}",
         "remove_none": "目前沒有可移除影像。",
@@ -206,6 +210,9 @@ LANG_MAP = {
         "foundation_mode": "Foundation Assist",
         "propagate": "Propagate",
         "run_detection": "Run Detection",
+        "detection_model": "Detection Model",
+        "browse_model": "Browse Model",
+        "use_official_yolo26m": "Use Official yolo26n.pt",
         "export": "Export COCO",
         "prev": "Previous",
         "next": "Next",
@@ -241,10 +248,13 @@ class UltimateLabeller:
         self.root.title(LANG_MAP[self.lang]["title"])
         self.root.geometry(self.config.default_window_size)
         self.root.minsize(self.config.min_window_width, self.config.min_window_height)
+        self.window_icon_tk = None
+        self.toolbar_logo_tk = None
         
         # 閮剖??芸?蝢拙?擃?
         self.setup_fonts()
         self.apply_theme(self.theme, rebuild=False)
+        self.setup_app_icon()
         self._tooltip_after_id = None
         self._tooltip_win = None
         
@@ -338,6 +348,33 @@ class UltimateLabeller:
             selectbackground=[('readonly', COLORS["primary_bg"])],
             selectforeground=[('readonly', COLORS["primary"])]
         )
+
+    def _resolve_asset_path(self, relative_path: str) -> str | None:
+        try:
+            packaged = resources.files("ai_labeller").joinpath(relative_path)
+            if packaged.is_file():
+                return str(packaged)
+        except Exception:
+            pass
+        local = os.path.join(os.path.dirname(__file__), relative_path)
+        if os.path.isfile(local):
+            return local
+        return None
+
+    def setup_app_icon(self) -> None:
+        icon_path = self._resolve_asset_path("assets/app_icon.png")
+        if not icon_path:
+            return
+        try:
+            icon_img = Image.open(icon_path).convert("RGBA")
+            win_icon = icon_img.resize((32, 32), Image.Resampling.LANCZOS)
+            toolbar_icon = icon_img.resize((20, 20), Image.Resampling.LANCZOS)
+            self.window_icon_tk = ImageTk.PhotoImage(win_icon)
+            self.toolbar_logo_tk = ImageTk.PhotoImage(toolbar_icon)
+            self.root.iconphoto(True, self.window_icon_tk)
+            icon_img.close()
+        except Exception:
+            self.logger.exception("Failed to load app icon")
     
     def delete_selected(self, e=None):
         """?芷?訾葉??閮餅?"""
@@ -378,13 +415,20 @@ class UltimateLabeller:
         title_frame = tk.Frame(left_frame, bg=COLORS["bg_dark"])
         title_frame.pack(side="left", pady=12)
         
-        tk.Label(
-            title_frame,
-            text="AI",
-            font=("Arial", 20),
-            fg=COLORS["primary"],
-            bg=COLORS["bg_dark"]
-        ).pack(side="left", padx=(0, 8))
+        if self.toolbar_logo_tk is not None:
+            tk.Label(
+                title_frame,
+                image=self.toolbar_logo_tk,
+                bg=COLORS["bg_dark"]
+            ).pack(side="left", padx=(0, 8))
+        else:
+            tk.Label(
+                title_frame,
+                text="AI",
+                font=("Arial", 20),
+                fg=COLORS["primary"],
+                bg=COLORS["bg_dark"]
+            ).pack(side="left", padx=(0, 8))
         
         tk.Label(
             title_frame,

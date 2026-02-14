@@ -58,7 +58,7 @@ pip install ultimate_ai_labeller
 From local wheel:
 
 ```bash
-pip install dist/ultimate_ai_labeller-0.1.3-py3-none-any.whl
+pip install dist/ultimate_ai_labeller-0.1.4-py3-none-any.whl
 ```
 
 From source:
@@ -98,4 +98,5 @@ python src/ai_labeller/main.py
 
 - Default detection model mode is `Official YOLO26n.pt (Bundled)`.
 - The package includes `yolo26n.pt`, so first-run model download is not required.
+- To use your own Tk app icon, put `app_icon.png` in `src/ai_labeller/assets/`.
 - Session file: `~/.ai_labeller_session.json`.

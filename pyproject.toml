@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ultimate_ai_labeller"
-version = "0.1.3"
+version = "0.1.4"
 description = "AI Labelling tool for computer vision"
 readme = "README.md"
 authors = [{ name="James Chang", email="james2738999@gmail.com" }]
@@ -26,4 +26,4 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-ai_labeller = ["models/*.pt"]
+ai_labeller = ["models/*.pt", "assets/*.png", "assets/*.ico"]

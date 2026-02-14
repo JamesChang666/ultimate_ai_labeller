@@ -1,1 +1,2 @@
 recursive-include src/ai_labeller/models *.pt
+recursive-include src/ai_labeller/assets *.png *.ico
