@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from typing import List
-
 from .types import Rect
 
 
 def calculate_iou(box1: Rect, box2: Rect) -> float:
+    """Compute IoU (intersection over union) for two axis-aligned boxes."""
     x1_1, y1_1, x2_1, y2_1 = box1[:4]
     x1_2, y1_2, x2_2, y2_2 = box2[:4]
     x1_i = max(x1_1, x1_2)
@@ -19,14 +18,15 @@ def calculate_iou(box1: Rect, box2: Rect) -> float:
     return inter / union if union > 0 else 0.0
 
 
-def fuse_boxes(boxes: List[Rect], iou_thresh: float, dist_thresh: int) -> List[Rect]:
+def fuse_boxes(boxes: list[Rect], iou_thresh: float, dist_thresh: int) -> list[Rect]:
+    """Iteratively merge boxes by IoU or short horizontal gap with vertical overlap."""
     if len(boxes) <= 1:
         return boxes
     keep_fusing = True
     current = [box[:] for box in boxes]
     while keep_fusing:
         keep_fusing = False
-        merged: List[Rect] = []
+        merged: list[Rect] = []
         used = [False] * len(current)
         for i, box in enumerate(current):
             if used[i]:

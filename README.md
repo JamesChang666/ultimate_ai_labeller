@@ -9,16 +9,23 @@ Desktop image annotation tool for object detection datasets (Tkinter + Ultralyti
 - Image navigation (`F` next/save, `D` previous)
 - Auto red-region proposal (`A`)
 - YOLO detection from UI (`Run Detection`)
-- Model source selection:
-  - Official bundled `yolo26n.pt`
-  - Custom YOLO weights (`.pt`)
-  - Custom RF-DETR weights (via Ultralytics interface)
+- Startup source selection:
+  - Open Images Folder
+  - Open YOLO Dataset
+  - Open RF-DETR Dataset
+- Detection model management:
+  - Official model mode (`yolo26m.pt` path by default)
+  - Import custom models (`.pt`, `.onnx`) via `Browse Model`
+  - Select model from dropdown library
 - Auto-detect and propagate options
 - Scrollable right settings panel
 - Remove/restore bad frames from split
 - Image dropdown jump
 - Session resume (last project/split/image/model settings)
 - English/Chinese UI switch and light/dark theme
+- Export all annotations by format:
+  - `YOLO (.txt)` full dataset export
+  - `JSON` full dataset export (per-image annotation json)
 
 ## Dataset Structure
 
@@ -36,6 +43,7 @@ your_project/
 
 - Image extensions: `.png`, `.jpg`, `.jpeg`
 - Label format: YOLO txt (`class cx cy w h`, normalized)
+- Full guide (ZH): `docs/dataset-structure-guide.md`
 
 Removed frames are moved to:
 
@@ -58,7 +66,7 @@ pip install ultimate_ai_labeller
 From local wheel:
 
 ```bash
-pip install dist/ultimate_ai_labeller-0.1.4-py3-none-any.whl
+pip install dist/ultimate_ai_labeller-0.1.5-py3-none-any.whl
 ```
 
 From source:
@@ -96,7 +104,7 @@ python src/ai_labeller/main.py
 
 ## Notes
 
-- Default detection model mode is `Official YOLO26n.pt (Bundled)`.
-- The package includes `yolo26n.pt`, so first-run model download is not required.
+- Default detection model mode is `Official YOLO26m.pt (Bundled)`.
+- If the official model file is unavailable locally, import a custom `.pt/.onnx` model from the UI.
 - To use your own Tk app icon, put `app_icon.png` in `src/ai_labeller/assets/`.
 - Session file: `~/.ai_labeller_session.json`.

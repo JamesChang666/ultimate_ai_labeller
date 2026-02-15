@@ -7,10 +7,12 @@ class AppConfig:
     min_window_height: int = 600
     default_window_size: str = "1100x700"
     handle_size: int = 8
-    yolo_model_path: str = "yolo26n.pt"
+    yolo_model_path: str = "yolo26m.pt"
     default_yolo_conf: float = 0.5
     max_learning_memory: int = 20
     auto_label_min_area: int = 150
+    red_detection_kernel_size: int = 5
+    red_detection_dilate_iterations: int = 3
     zoom_in_factor: float = 1.1
     zoom_out_factor: float = 0.9
     session_file_name: str = ".ai_labeller_session.json"

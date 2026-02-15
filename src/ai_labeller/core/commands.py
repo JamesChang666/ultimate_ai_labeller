@@ -2,19 +2,18 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
-from typing import List, Optional
 
 from .types import Rect
 
 
 @dataclass
 class RevertToSnapshotCommand:
-    target: List[Rect]
-    before: List[Rect]
-    after: Optional[List[Rect]] = None
+    target: list[Rect]
+    before: list[Rect]
+    after: list[Rect] | None = None
 
     @classmethod
-    def from_target(cls, target: List[Rect]) -> "RevertToSnapshotCommand":
+    def from_target(cls, target: list[Rect]) -> "RevertToSnapshotCommand":
         return cls(target=target, before=copy.deepcopy(target))
 
     def undo(self) -> None:
@@ -30,10 +29,10 @@ class RevertToSnapshotCommand:
 
 class HistoryManager:
     def __init__(self) -> None:
-        self._undo_stack: List[RevertToSnapshotCommand] = []
-        self._redo_stack: List[RevertToSnapshotCommand] = []
+        self._undo_stack: list[RevertToSnapshotCommand] = []
+        self._redo_stack: list[RevertToSnapshotCommand] = []
 
-    def push_snapshot(self, target: List[Rect]) -> None:
+    def push_snapshot(self, target: list[Rect]) -> None:
         self._undo_stack.append(RevertToSnapshotCommand.from_target(target))
         self._redo_stack.clear()
 

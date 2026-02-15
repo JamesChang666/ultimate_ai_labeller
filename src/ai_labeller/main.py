@@ -1,14 +1,21 @@
-﻿import tkinter as tk
 import ctypes
 import ctypes.wintypes
+import copy
+import datetime
+import gc
+import glob
+import json
 import math
-from importlib import resources
-from tkinter import filedialog, messagebox, ttk, simpledialog
-from PIL import Image, ImageTk, ImageDraw
-import os, glob, json, copy, datetime, shutil
-import numpy as np
+import os
+import shutil
+import tkinter as tk
 from collections import deque
+from importlib import resources
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import Any
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageTk
 
 from ai_labeller.core import (
     AppConfig,
@@ -20,7 +27,7 @@ from ai_labeller.core import (
     setup_logging,
 )
 
-# 瑼Ｘ摨怎憓?
+# Optional dependencies
 try:
     import cv2
     HAS_CV2 = True
@@ -43,47 +50,47 @@ except ImportError:
 
 LOGGER = setup_logging()
 
-# ==================== 撠平蝝??脫獢?(??Figma/Adobe XD) ====================
+# ==================== Theme Colors ====================
 COLORS = {
-    # 銝餉隤?- 撠平???脩頂
-    "primary": "#5551FF",           # Figma 憸冽銝餉
+    # Primary
+    "primary": "#5551FF",           # Figma ????????
     "primary_hover": "#4845E4",
     "primary_light": "#7B79FF",
     "primary_bg": "#F0F0FF",
     
-    # ???
-    "success": "#0FA958",           # ??蝬?
-    "danger": "#F24822",            # ?梢蝝?
-    "warning": "#FFAA00",           # 霅血?璈?
-    "info": "#18A0FB",              # 鞈???
+    # Status colors
+    "success": "#0FA958",           # Draw a new box?
+    "danger": "#F24822",            # ???????
+    "warning": "#FFAA00",           # ??????
+    "info": "#18A0FB",              # Draw a new box?
     
-    # 銝剜扯隤?- Sketch 憸冽
-    "bg_dark": "#1E1E1E",           # 瘛梯?
-    "bg_medium": "#2C2C2C",         # 銝剔??
-    "bg_light": "#F5F5F5",          # 瘛箄?
-    "bg_white": "#FFFFFF",          # ?質?
+    # Neutral colors
+    "bg_dark": "#1E1E1E",           # ???????
+    "bg_medium": "#2C2C2C",         # ?????
+    "bg_light": "#F5F5F5",          # ????
+    "bg_white": "#FFFFFF",          # ???
     "bg_canvas": "#18191B",         # Canvas ?
     
-    # ????
+    # Text
     "text_primary": "#000000",
     "text_secondary": "#8E8E93",
     "text_tertiary": "#C7C7CC",
     "text_white": "#FFFFFF",
     
-    # ??????
+    # Borders
     "border": "#E5E5EA",
     "divider": "#38383A",
     
-    # 璅酉獢???- 撠平隤輯??
-    "box_1": "#FF3B30",  # 蝝?
-    "box_2": "#FF9500",  # 璈?
-    "box_3": "#FFCC00",  # 暺?
-    "box_4": "#34C759",  # 蝬?
+    # Bounding boxes
+    "box_1": "#FF3B30",  # ??
+    "box_2": "#FF9500",  # ??
+    "box_3": "#FFCC00",  # ??
+    "box_4": "#34C759",  # ??
     "box_5": "#5AC8FA",  # ??
-    "box_6": "#5856D6",  # 蝝?
-    "box_selected": "#00D4FF",  # ?訾葉獢?
+    "box_6": "#5856D6",  # ??
+    "box_selected": "#00D4FF",  # ???????
     
-    # ?啣蔣
+    # Effects
     "shadow": "rgba(0, 0, 0, 0.1)",
 }
 
@@ -114,65 +121,81 @@ THEMES = {
     },
 }
 
-# ==================== 隤???====================
+# ==================== Language ====================
 LANG_MAP = {
     "zh": {
         "title": "AI Labeller Pro",
-        "load_proj": "載入專案",
-        "undo": "復原",
-        "redo": "重做",
-        "autolabel": "紅色偵測",
-        "fuse": "融合標註",
-        "file_info": "檔案資訊",
-        "no_img": "沒有影像",
-        "filename": "檔名",
-        "progress": "進度",
-        "boxes": "框數",
-        "class_mgmt": "類別管理",
-        "current_class": "目前類別",
-        "edit_classes": "編輯類別",
-        "reassign_class": "重設所選框類別",
-        "clear_labels": "清除目前影像標註",
-        "add": "新增",
-        "rename": "重新命名",
-        "apply": "套用",
-        "class_name": "類別名稱",
-        "rename_prompt": "修改 '{name}':",
-        "add_prompt": "類別名稱:",
-        "current": "目前",
-        "to": "改為",
-        "no_label_selected": "未選取任何標註框。",
-        "no_classes_available": "目前沒有可用類別。",
-        "theme_light": "淺色模式",
-        "theme_dark": "深色模式",
-        "export_format": "匯出格式",
-        "ai_tools": "AI 工具",
-        "auto_detect": "自動偵測",
-        "learning": "學習",
-        "foundation_mode": "基礎模型輔助",
-        "propagate": "沿用上一張",
-        "run_detection": "執行偵測",
-        "detection_model": "偵測模型",
-        "browse_model": "瀏覽模型",
-        "use_official_yolo26m": "使用官方 yolo26n.pt",
-        "export": "匯出 COCO",
-        "prev": "上一張",
-        "next": "下一張",
-        "shortcuts": "快捷鍵",
-        "shortcut_help": "快捷鍵說明",
-        "dataset": "資料集",
-        "lang_switch": "English",
-        "delete": "刪除所選框",
-        "remove_from_split": "從此資料分割移除",
-        "remove_confirm": "要從 {split} 移除目前影像嗎？",
-        "remove_done": "已移除: {name}",
-        "remove_none": "目前沒有可移除影像。",
-        "restore_from_split": "還原刪除影像",
-        "restore_none": "此 split 沒有可還原影像。",
-        "restore_title": "還原刪除影像",
-        "restore_select": "選擇要還原的影像:",
-        "restore_done": "已還原: {name}",
-        "select_image": "選擇影像",
+        "load_proj": "[ZH] Load Project",
+        "undo": "[ZH] Undo",
+        "redo": "[ZH] Redo",
+        "autolabel": "[ZH] Red Detection",
+        "fuse": "[ZH] Fuse Boxes",
+        "file_info": "[ZH] File Info",
+        "no_img": "[ZH] No Image",
+        "filename": "[ZH] File",
+        "progress": "[ZH] Progress",
+        "boxes": "[ZH] Boxes",
+        "class_mgmt": "[ZH] Classes",
+        "current_class": "[ZH] Current Class",
+        "edit_classes": "[ZH] Edit Classes",
+        "reassign_class": "[ZH] Reassign Selected Class",
+        "clear_labels": "[ZH] Clear Labels (Current)",
+        "add": "[ZH] Add",
+        "rename": "[ZH] Rename",
+        "apply": "[ZH] Apply",
+        "class_name": "[ZH] Class Name",
+        "rename_prompt": "[ZH] Modify '{name}':",
+        "add_prompt": "[ZH] Class name:",
+        "current": "[ZH] Current",
+        "to": "[ZH] To",
+        "no_label_selected": "[ZH] No label selected.",
+        "no_classes_available": "[ZH] No classes available.",
+        "theme_light": "[ZH] Light Mode",
+        "theme_dark": "[ZH] Dark Mode",
+        "export_format": "[ZH] Export All As",
+        "ai_tools": "[ZH] AI Tools",
+        "auto_detect": "[ZH] Auto Detect",
+        "learning": "[ZH] Learning",
+        "foundation_mode": "[ZH] Foundation Assist",
+        "propagate": "[ZH] Propagate",
+        "run_detection": "[ZH] Run Detection",
+        "detection_model": "[ZH] Detection Model",
+        "browse_model": "[ZH] Browse Model",
+        "use_official_yolo26n": "[ZH] Use Official yolo26m.pt",
+        "export": "[ZH] Export All",
+        "prev": "[ZH] Previous",
+        "next": "[ZH] Next",
+        "shortcuts": "[ZH] Shortcuts",
+        "shortcut_help": "[ZH] Shortcut Help",
+        "dataset": "[ZH] Dataset",
+        "lang_switch": "EN",
+        "delete": "[ZH] Delete Selected",
+        "remove_from_split": "[ZH] Remove From Split",
+        "remove_confirm": "[ZH] Remove current image from {split}?",
+        "remove_done": "[ZH] Removed: {name}",
+        "remove_none": "[ZH] No image to remove.",
+        "restore_from_split": "[ZH] Restore Deleted Frame",
+        "restore_none": "[ZH] No removed frame found in this split.",
+        "restore_title": "[ZH] Restore Deleted Frame",
+        "restore_select": "[ZH] Select a frame to restore:",
+        "restore_done": "[ZH] Restored: {name}",
+        "select_image": "[ZH] Select Image",
+        "startup_choose_source": "[ZH] Choose Startup Source",
+        "startup_prompt": "[ZH] How do you want to start?",
+        "startup_images": "[ZH] Open Images Folder",
+        "startup_yolo": "[ZH] Open YOLO Dataset",
+        "startup_rfdetr": "[ZH] Open RF-DETR Dataset",
+        "startup_skip": "[ZH] Later",
+        "back_to_source": "[ZH] Back to Source Select",
+        "startup_model_cancel_title": "[ZH] Model Selection Cancelled",
+        "startup_model_cancel_msg": "[ZH] No model selected. Continue with images folder only?",
+        "pick_folder_title": "[ZH] Select Folder",
+        "loaded_from": "[ZH] Loaded {count} images\nFrom: {path}\nSplit: {split}",
+        "no_supported_images": "[ZH] No supported images found (png/jpg/jpeg)\nFolder: {path}",
+        "select_export_folder": "[ZH] Select Export Folder",
+        "export_no_project": "[ZH] No dataset loaded.",
+        "export_done": "[ZH] Export completed: {count} images\nOutput: {path}",
+        "export_failed": "[ZH] Export failed: {err}",
     },
     "en": {
         "title": "AI Labeller Pro",
@@ -203,7 +226,7 @@ LANG_MAP = {
         "no_classes_available": "No classes available.",
         "theme_light": "Light Mode",
         "theme_dark": "Dark Mode",
-        "export_format": "Export Format",
+        "export_format": "Export All As",
         "ai_tools": "AI Tools",
         "auto_detect": "Auto Detect",
         "learning": "Learning",
@@ -212,14 +235,14 @@ LANG_MAP = {
         "run_detection": "Run Detection",
         "detection_model": "Detection Model",
         "browse_model": "Browse Model",
-        "use_official_yolo26m": "Use Official yolo26n.pt",
-        "export": "Export COCO",
+        "use_official_yolo26n": "Use Official yolo26m.pt",
+        "export": "Export All",
         "prev": "Previous",
         "next": "Next",
         "shortcuts": "Shortcuts",
         "shortcut_help": "Shortcut Help",
         "dataset": "Dataset",
-        "lang_switch": "中文",
+        "lang_switch": "ZH",
         "delete": "Delete Selected",
         "remove_from_split": "Remove From Split",
         "remove_confirm": "Remove current image from {split}?",
@@ -231,10 +254,25 @@ LANG_MAP = {
         "restore_select": "Select a frame to restore:",
         "restore_done": "Restored: {name}",
         "select_image": "Select Image",
+        "startup_choose_source": "Choose Startup Source",
+        "startup_prompt": "How do you want to start?",
+        "startup_images": "Open Images Folder",
+        "startup_yolo": "Open YOLO Dataset",
+        "startup_rfdetr": "Open RF-DETR Dataset",
+        "startup_skip": "Later",
+        "back_to_source": "Back to Source Select",
+        "startup_model_cancel_title": "Model Selection Cancelled",
+        "startup_model_cancel_msg": "No model selected. Continue with images folder only?",
+        "pick_folder_title": "Select Folder",
+        "loaded_from": "Loaded {count} images\nFrom: {path}\nSplit: {split}",
+        "no_supported_images": "No supported images found (png/jpg/jpeg)\nFolder: {path}",
+        "select_export_folder": "Select Export Folder",
+        "export_no_project": "No dataset loaded.",
+        "export_done": "Export completed: {count} images\nOutput: {path}",
+        "export_failed": "Export failed: {err}",
     },
 }
-
-# ==================== 銝餌?撘?====================
+# ==================== Main App ====================
 class UltimateLabeller:
     def __init__(self, root: tk.Tk):
         self.root = root
@@ -251,14 +289,14 @@ class UltimateLabeller:
         self.window_icon_tk = None
         self.toolbar_logo_tk = None
         
-        # 閮剖??芸?蝢拙?擃?
+        # ???????????????
         self.setup_fonts()
         self.apply_theme(self.theme, rebuild=False)
         self.setup_app_icon()
         self._tooltip_after_id = None
         self._tooltip_win = None
         
-        # --- ?詨?鞈? ---
+        # --- ????? ---
         self.project_root = self.state.project_root
         self.current_split = self.state.current_split
         self.image_files = self.state.image_files
@@ -267,7 +305,7 @@ class UltimateLabeller:
         self.class_names = self.state.class_names
         self.learning_mem = deque(maxlen=self.config.max_learning_memory)
         
-        # --- 閬????---
+        # --- ??????---
         self.scale = 1.0
         self.offset_x = 0
         self.offset_y = 0
@@ -289,8 +327,9 @@ class UltimateLabeller:
         # --- AI ? ---
         self.yolo_model = None
         self.yolo_path = tk.StringVar(value=self.config.yolo_model_path)
-        self.det_model_mode = tk.StringVar(value="Official YOLO26n.pt (Bundled)")
+        self.det_model_mode = tk.StringVar(value="Official YOLO26m.pt (Bundled)")
         self._loaded_model_key: tuple[str, str] | None = None
+        self.model_library: list[str] = [self.config.yolo_model_path]
         self.var_export_format = tk.StringVar(value="YOLO (.txt)")
         self.var_auto_yolo = tk.BooleanVar(value=False)
         self.var_propagate = tk.BooleanVar(value=False)
@@ -300,15 +339,19 @@ class UltimateLabeller:
         self.foundation_sam_predictor = None
         self._uncertainty_cache: dict[str, float] = {}
         self._active_scan_offset = 0
+        self._folder_dialog_open = False
+        self._startup_dialog_shown = False
+        self._startup_dialog_open = False
         
         self.setup_custom_style()
         self.setup_ui()
         self.bind_events()
         self.root.protocol("WM_DELETE_WINDOW", self.on_app_close)
         self.load_session_state()
+        self.root.after(120, self.show_startup_source_dialog)
     
     def setup_fonts(self):
-        """閮剖?撠平摮?"""
+        """Configure platform-specific font families and sizes."""
         import platform
         system = platform.system()
         
@@ -329,11 +372,11 @@ class UltimateLabeller:
             self.font_mono = ("Ubuntu Mono", 9)
     
     def setup_custom_style(self):
-        """閮剖? ttk 璅??"""
+        """?????? ttk ???"""
         style = ttk.Style()
         style.theme_use('clam')
         
-        # 閮剖? Combobox
+        # ?????? Combobox
         style.configure("TCombobox",
             fieldbackground=COLORS["bg_white"],
             background=COLORS["bg_light"],
@@ -377,7 +420,7 @@ class UltimateLabeller:
             self.logger.exception("Failed to load app icon")
     
     def delete_selected(self, e=None):
-        """?芷?訾葉??閮餅?"""
+        """?????????????"""
         if self.selected_idx is not None:
             self.push_history()
             self.rects.pop(self.selected_idx)
@@ -385,10 +428,10 @@ class UltimateLabeller:
             self.render()
     
     def setup_ui(self):
-        # ==================== ?撌亙甈?====================
+        # ==================== ??????====================
         self.setup_toolbar()
         
-        # ==================== ?湧?甈?====================
+        # ==================== ?????====================
         self.setup_sidebar()
         
         # ==================== Canvas ====================
@@ -402,33 +445,36 @@ class UltimateLabeller:
         self.canvas.pack(fill="both", expand=True)
     
     def setup_toolbar(self):
-        """閮剔蔭?撌亙甈?"""
+        """????????????"""
         toolbar = tk.Frame(self.root, bg=COLORS["bg_dark"], height=56)
         toolbar.pack(side="top", fill="x")
         toolbar.pack_propagate(False)
         
-        # 撌血???
+        # ???????
         left_frame = tk.Frame(toolbar, bg=COLORS["bg_dark"])
         left_frame.pack(side="left", fill="y", padx=16)
         
-        # Logo ??憿?
+        # Logo ????
         title_frame = tk.Frame(left_frame, bg=COLORS["bg_dark"])
         title_frame.pack(side="left", pady=12)
         
         if self.toolbar_logo_tk is not None:
-            tk.Label(
+            logo = tk.Label(
                 title_frame,
                 image=self.toolbar_logo_tk,
                 bg=COLORS["bg_dark"]
-            ).pack(side="left", padx=(0, 8))
+            )
         else:
-            tk.Label(
+            logo = tk.Label(
                 title_frame,
                 text="AI",
                 font=("Arial", 20),
                 fg=COLORS["primary"],
                 bg=COLORS["bg_dark"]
-            ).pack(side="left", padx=(0, 8))
+            )
+        logo.pack(side="left", padx=(0, 8))
+        logo.bind("<Button-1>", self.return_to_source_select)
+        logo.bind("<Enter>", lambda _e: logo.config(cursor="hand2"))
         
         tk.Label(
             title_frame,
@@ -438,22 +484,22 @@ class UltimateLabeller:
             bg=COLORS["bg_dark"]
         ).pack(side="left")
         
-        # ??蝺?
+        # Draw a new box?
         tk.Frame(
             left_frame,
             width=1,
             bg=COLORS["divider"]
         ).pack(side="left", fill="y", padx=16)
         
-        # 頛撠???
+        # ??????
         self.create_toolbar_button(
             left_frame,
-            text=f"??  {LANG_MAP[self.lang]['load_proj']}",
-            command=self.load_project_root,
+            text=LANG_MAP[self.lang]["load_proj"],
+            command=lambda: self.show_startup_source_dialog(force=True),
             bg=COLORS["primary"]
         ).pack(side="left", padx=4)
         
-        # Dataset ?豢???
+        # Dataset ?????
         dataset_frame = tk.Frame(left_frame, bg=COLORS["bg_dark"])
         dataset_frame.pack(side="left", padx=12)
         
@@ -476,11 +522,11 @@ class UltimateLabeller:
         self.combo_split.pack(side="left")
         self.combo_split.bind("<<ComboboxSelected>>", self.on_split_change)
         
-        # 銝剝????- 蝺刻摩撌亙
+        # ????????- ??????????
         center_frame = tk.Frame(toolbar, bg=COLORS["bg_dark"])
         center_frame.pack(side="left", fill="y", padx=16)
         
-        # ?日/??
+        # Draw a new box??
         self.create_toolbar_icon_button(
             center_frame,
             text="U",
@@ -499,7 +545,7 @@ class UltimateLabeller:
             side="left", fill="y", padx=8
         )
         
-        # AI 撌亙
+        # AI ???
         self.create_toolbar_icon_button(
             center_frame,
             text="?",
@@ -508,14 +554,14 @@ class UltimateLabeller:
             bg=COLORS["danger"]
         ).pack(side="left", padx=2)
         
-        # ?喳???
+        # Draw a new box???
         right_frame = tk.Frame(toolbar, bg=COLORS["bg_dark"])
         right_frame.pack(side="right", fill="y", padx=16)
 
-        # 敹急?菔牧??蝷綽?皛??? 1 蝘＊蝷綽?
+        # ????????????????????? 1 ????????????
         self.create_help_icon(right_frame).pack(side="right", padx=4, pady=12)
 
-        # 銝駁???
+        # ??????
         self.create_toolbar_button(
             right_frame,
             text=self.get_theme_switch_label(),
@@ -523,16 +569,16 @@ class UltimateLabeller:
             bg=COLORS["bg_medium"]
         ).pack(side="right", padx=4, pady=12)
 
-        # 隤???
+        # Draw a new box?
         self.create_toolbar_button(
             right_frame,
-            text=f"??  {LANG_MAP[self.lang]['lang_switch']}",
+            text=LANG_MAP[self.lang]["lang_switch"],
             command=self.toggle_language,
             bg=COLORS["bg_medium"]
         ).pack(side="right", padx=4, pady=12)
     
     def create_toolbar_button(self, parent, text, command, bg=None):
-        """?萄遣撌亙甈???"""
+        """??????????????"""
         bg_val = bg or COLORS["bg_medium"]
         fg_val = self.toolbar_text_color(bg_val)
         btn = tk.Button(
@@ -550,7 +596,7 @@ class UltimateLabeller:
             highlightthickness=0
         )
         
-        # ?詨???
+        # ?????
         def on_enter(e):
             btn.config(bg=COLORS["primary_hover"] if bg == COLORS["primary"] else COLORS["bg_medium"])
         
@@ -563,7 +609,7 @@ class UltimateLabeller:
         return btn
 
     def create_help_icon(self, parent):
-        """撱箇?敹急?菔牧??蝷?"""
+        """?????????????????"""
         btn = tk.Label(
             parent,
             text="?",
@@ -692,7 +738,7 @@ class UltimateLabeller:
             self._tooltip_win = None
     
     def create_toolbar_icon_button(self, parent, text, command, tooltip="", bg=None):
-        """?萄遣撌亙甈?璅???"""
+        """????????????????"""
         bg_val = bg or COLORS["bg_medium"]
         fg_val = self.toolbar_text_color(bg_val)
         btn = tk.Button(
@@ -710,7 +756,7 @@ class UltimateLabeller:
             highlightthickness=0
         )
         
-        # ?詨???
+        # ?????
         def on_enter(e):
             if bg:
                 btn.config(bg=self.lighten_color(bg))
@@ -726,7 +772,7 @@ class UltimateLabeller:
         return btn
     
     def lighten_color(self, color):
-        """雿輸??脰?鈭?"""
+        """??????????"""
         if color == COLORS["danger"]:
             return "#FF6B54"
         elif color == COLORS["warning"]:
@@ -734,12 +780,12 @@ class UltimateLabeller:
         return color
     
     def setup_sidebar(self):
-        """閮剔蔭?湧?甈?"""
+        """???????????"""
         sidebar = tk.Frame(self.root, width=320, bg=COLORS["bg_light"])
         sidebar.pack(side="right", fill="y")
         sidebar.pack_propagate(False)
         
-        # 皛曉?摰孵
+        # ?????????
         self.sidebar_canvas = tk.Canvas(
             sidebar,
             bg=COLORS["bg_light"],
@@ -765,19 +811,19 @@ class UltimateLabeller:
         self.sidebar_canvas.bind("<Button-4>", lambda e: self.sidebar_canvas.yview_scroll(-1, "units"))
         self.sidebar_canvas.bind("<Button-5>", lambda e: self.sidebar_canvas.yview_scroll(1, "units"))
         
-        # ===== 瑼?鞈??∠? =====
+        # ===== ??????? =====
         self.create_info_card(self.sidebar_scroll_frame)
         
-        # ===== 憿蝞∠??∠? =====
+        # ===== ???????? =====
         self.create_class_card(self.sidebar_scroll_frame)
         
-        # ===== AI 撌亙?∠? =====
+        # ===== AI ?????? =====
         self.create_ai_card(self.sidebar_scroll_frame)
         
-        # ===== 敹急?萄??=====
+        # ===== ????????=====
         self.create_shortcut_card(self.sidebar_scroll_frame)
         
-        # ===== 摨撠 =====
+        # ===== ??? =====
         self.create_navigation(sidebar)
         self._bind_sidebar_mousewheel(self.sidebar_scroll_frame)
         
@@ -848,7 +894,7 @@ class UltimateLabeller:
         self.render()
     
     def create_card(self, parent, title=None):
-        """?萄遣?∠?摰孵"""
+        """Create a styled card container and return its content frame."""
         card = tk.Frame(
             parent,
             bg=COLORS["bg_white"],
@@ -857,7 +903,7 @@ class UltimateLabeller:
         )
         card.pack(fill="x", padx=16, pady=8)
         
-        # 瘛餃?敺桀??啣蔣??嚗???璅⊥嚗?
+        # ?????????????????????????????
         card_border = tk.Frame(card, bg=COLORS["border"], height=1)
         card_border.pack(fill="x", side="bottom")
         
@@ -878,10 +924,10 @@ class UltimateLabeller:
         return content
     
     def create_info_card(self, parent):
-        """?萄遣瑼?鞈??∠?"""
+        """??????????????"""
         content = self.create_card(parent, LANG_MAP[self.lang]["file_info"])
         
-        # 瑼??迂
+        # Draw a new box??
         self.lbl_filename = tk.Label(
             content,
             text=LANG_MAP[self.lang]["no_img"],
@@ -911,11 +957,11 @@ class UltimateLabeller:
         self.combo_image.pack(fill="x")
         self.combo_image.bind("<<ComboboxSelected>>", self.on_image_selected)
         
-        # ?脣漲璇捆??
+        # Draw a new box??????
         progress_frame = tk.Frame(content, bg=COLORS["bg_white"])
         progress_frame.pack(fill="x", pady=(8, 0))
         
-        # ?脣漲??
+        # Draw a new box???
         self.lbl_progress = tk.Label(
             progress_frame,
             text="0 / 0",
@@ -925,7 +971,7 @@ class UltimateLabeller:
         )
         self.lbl_progress.pack(side="left")
         
-        # 璅酉獢??
+        # ??????
         self.lbl_box_count = tk.Label(
             progress_frame,
             text=f"{LANG_MAP[self.lang]['boxes']}: 0",
@@ -936,10 +982,10 @@ class UltimateLabeller:
         self.lbl_box_count.pack(side="right")
     
     def create_class_card(self, parent):
-        """?萄遣憿蝞∠??∠?"""
+        """???????????????"""
         content = self.create_card(parent, LANG_MAP[self.lang]["class_mgmt"])
         
-        # ?嗅?憿璅惜
+        # Draw a new box?????
         tk.Label(
             content,
             text=LANG_MAP[self.lang]["current_class"],
@@ -949,7 +995,7 @@ class UltimateLabeller:
             anchor="w"
         ).pack(fill="x", pady=(0, 8))
         
-        # 憿?豢???
+        # ??????
         self.combo_cls = ttk.Combobox(
             content,
             values=self.class_names,
@@ -960,21 +1006,14 @@ class UltimateLabeller:
         self.combo_cls.pack(fill="x", pady=(0, 12))
         self.combo_cls.bind("<<ComboboxSelected>>", self.on_class_change_request)
         
-        # 蝺刻摩憿??
+        # ????????????
         self.create_primary_button(
             content,
             text=LANG_MAP[self.lang]["edit_classes"],
             command=self.edit_classes_table
         ).pack(fill="x", pady=(0, 12))
 
-        # 霈撌脫?閮駁???
-        self.create_secondary_button(
-            content,
-            text=LANG_MAP[self.lang]["reassign_class"],
-            command=self.reassign_labeled_class
-        ).pack(fill="x", pady=(0, 12))
-
-        # 皜?砍撐璅酉
+        # Draw a new box?????
         self.create_secondary_button(
             content,
             text=LANG_MAP[self.lang]["clear_labels"],
@@ -993,7 +1032,7 @@ class UltimateLabeller:
             command=self.open_restore_removed_dialog
         ).pack(fill="x", pady=(0, 12))
         
-        # ?臬?澆?
+        # Export format
         tk.Label(
             content,
             text=LANG_MAP[self.lang]["export_format"],
@@ -1006,16 +1045,23 @@ class UltimateLabeller:
         ttk.Combobox(
             content,
             textvariable=self.var_export_format,
-            values=["YOLO (.txt)", "Individual JSON"],
+            values=["YOLO (.txt)", "JSON"],
             state="readonly",
             font=self.font_primary
         ).pack(fill="x")
+
+        self.create_primary_button(
+            content,
+            text=LANG_MAP[self.lang]["export"],
+            command=self.export_all_by_selected_format,
+            bg=COLORS["info"]
+        ).pack(fill="x", pady=(10, 0))
     
     def create_ai_card(self, parent):
-        """?萄遣 AI 撌亙?∠?"""
+        """??????? AI ??????"""
         content = self.create_card(parent, LANG_MAP[self.lang]["ai_tools"])
         
-        # 銴獢見撘?
+        # ?????????
         checkbox_style = {
             "bg": COLORS["bg_white"],
             "fg": COLORS["text_primary"],
@@ -1052,7 +1098,7 @@ class UltimateLabeller:
             content,
             textvariable=self.det_model_mode,
             values=[
-                "Official YOLO26n.pt (Bundled)",
+                "Official YOLO26m.pt (Bundled)",
                 "Custom YOLO (v5/v7/v8/v9/v11/v26)",
                 "Custom RF-DETR",
             ],
@@ -1062,13 +1108,15 @@ class UltimateLabeller:
         self.combo_det_model.pack(fill="x", pady=(0, 6))
         self.combo_det_model.bind("<<ComboboxSelected>>", self.on_detection_model_mode_changed)
 
-        tk.Entry(
+        self.combo_model_path = ttk.Combobox(
             content,
             textvariable=self.yolo_path,
-            font=self.font_primary,
-            relief="solid",
-            bd=1
-        ).pack(fill="x", pady=(0, 6))
+            values=self.model_library,
+            state="readonly",
+            font=self.font_primary
+        )
+        self.combo_model_path.pack(fill="x", pady=(0, 6))
+        self._refresh_model_dropdown()
 
         picker_row = tk.Frame(content, bg=COLORS["bg_white"])
         picker_row.pack(fill="x", pady=(0, 6))
@@ -1081,11 +1129,11 @@ class UltimateLabeller:
 
         self.create_secondary_button(
             picker_row,
-            text=LANG_MAP[self.lang].get("use_official_yolo26m", "Use Official yolo26n.pt"),
+            text=LANG_MAP[self.lang].get("use_official_yolo26n", "Use Official yolo26m.pt"),
             command=self.use_official_yolo26n
         ).pack(side="left", fill="x", expand=True, padx=(4, 0))
         
-        # ?瑁??菜葫??
+        # Detection trigger
         self.create_primary_button(
             content,
             text=LANG_MAP[self.lang]["run_detection"],
@@ -1094,7 +1142,7 @@ class UltimateLabeller:
         ).pack(fill="x", pady=(12, 0))
     
     def create_shortcut_card(self, parent):
-        """?萄遣敹急?萄??"""
+        """Render shortcut hint list."""
         content = self.create_card(parent, LANG_MAP[self.lang]["shortcuts"])
         
         shortcuts = [
@@ -1130,7 +1178,7 @@ class UltimateLabeller:
             ).pack(side="left")
     
     def create_navigation(self, parent):
-        """?萄遣摨撠"""
+        """??????????"""
         nav_frame = tk.Frame(parent, bg=COLORS["bg_light"], height=80)
         nav_frame.pack(side="bottom", fill="x")
         nav_frame.pack_propagate(False)
@@ -1138,15 +1186,15 @@ class UltimateLabeller:
         btn_container = tk.Frame(nav_frame, bg=COLORS["bg_light"])
         btn_container.pack(fill="both", expand=True, padx=16, pady=16)
         
-        # 銝?撘?
+        # Draw a new box?
         self.create_nav_button(
             btn_container,
-            text=f"??{LANG_MAP[self.lang]['prev']}",
+            text=LANG_MAP[self.lang]["prev"],
             command=self.prev_img,
             side="left"
         )
         
-        # 銝?撘?
+        # Draw a new box?
         self.create_nav_button(
             btn_container,
             text=f"{LANG_MAP[self.lang]['next']} >",
@@ -1156,7 +1204,7 @@ class UltimateLabeller:
         )
     
     def create_primary_button(self, parent, text, command, bg=None):
-        """?萄遣銝餉???"""
+        """?????????????"""
         btn = tk.Button(
             parent,
             text=text,
@@ -1171,7 +1219,7 @@ class UltimateLabeller:
             highlightthickness=0
         )
         
-        # ?詨???
+        # ?????
         original_bg = bg or COLORS["primary"]
         hover_bg = COLORS["primary_hover"] if not bg else self.lighten_color(bg)
         
@@ -1201,7 +1249,7 @@ class UltimateLabeller:
         return btn
     
     def create_nav_button(self, parent, text, command, side, primary=False):
-        """?萄遣撠??"""
+        """??????????"""
         bg = COLORS["primary"] if primary else COLORS["bg_white"]
         fg = COLORS["text_white"] if primary else COLORS["text_primary"]
         
@@ -1222,7 +1270,7 @@ class UltimateLabeller:
         if not primary:
             btn.config(highlightbackground=COLORS["border"], highlightcolor=COLORS["border"])
         
-        # ?詨???
+        # ?????
         if primary:
             btn.bind("<Enter>", lambda e: btn.config(bg=COLORS["primary_hover"]))
             btn.bind("<Leave>", lambda e: btn.config(bg=COLORS["primary"]))
@@ -1236,12 +1284,12 @@ class UltimateLabeller:
             btn.pack(side="right", fill="both", expand=True, padx=(4, 0))
     
     def toggle_language(self):
-        """??隤?"""
+        """????"""
         self.lang = "en" if self.lang == "zh" else "zh"
         self.rebuild_ui()
     
     def update_info_text(self):
-        """?湔瑼?鞈?"""
+        """????????"""
         if not self.image_files:
             self.lbl_filename.config(text=LANG_MAP[self.lang]["no_img"])
             self.lbl_progress.config(text="0 / 0")
@@ -1281,6 +1329,18 @@ class UltimateLabeller:
         self.current_idx = idx
         self.load_img()
 
+    def _register_model_path(self, model_path: str) -> None:
+        path = model_path.strip()
+        if not path:
+            return
+        if path not in self.model_library:
+            self.model_library.append(path)
+        self._refresh_model_dropdown()
+
+    def _refresh_model_dropdown(self) -> None:
+        if hasattr(self, "combo_model_path"):
+            self.combo_model_path.configure(values=self.model_library)
+
     def save_session_state(self) -> None:
         state = SessionState(
             project_root=self.project_root,
@@ -1309,7 +1369,7 @@ class UltimateLabeller:
         project_root = data.get("project_root", "")
         split = data.get("split", "train")
         image_name = data.get("image_name", "")
-        model_mode = data.get("detection_model_mode", "Official YOLO26n.pt (Bundled)")
+        model_mode = data.get("detection_model_mode", "Official YOLO26m.pt (Bundled)")
         model_path = data.get("detection_model_path", self.config.yolo_model_path)
 
         if not project_root or not os.path.exists(project_root):
@@ -1318,41 +1378,62 @@ class UltimateLabeller:
         if split not in ["train", "val", "test"]:
             split = "train"
         if model_mode not in {
-            "Official YOLO26n.pt (Bundled)",
+            "Official YOLO26m.pt (Bundled)",
             "Custom YOLO (v5/v7/v8/v9/v11/v26)",
             "Custom RF-DETR",
         }:
-            model_mode = "Official YOLO26n.pt (Bundled)"
+            model_mode = "Official YOLO26m.pt (Bundled)"
         self.det_model_mode.set(model_mode)
         if model_path:
             self.yolo_path.set(model_path)
+            self._register_model_path(model_path)
         self.current_split = split
         self.combo_split.set(split)
         self.load_project_from_path(project_root, preferred_image=image_name, save_session=False)
 
     def on_detection_model_mode_changed(self, e: Any = None) -> None:
-        if self.det_model_mode.get() == "Official YOLO26n.pt (Bundled)":
-            self.yolo_path.set("yolo26n.pt")
+        if self.det_model_mode.get() == "Official YOLO26m.pt (Bundled)":
+            self.yolo_path.set(self.config.yolo_model_path)
+            self._register_model_path(self.config.yolo_model_path)
         self.yolo_model = None
         self._loaded_model_key = None
 
     def use_official_yolo26n(self) -> None:
-        self.det_model_mode.set("Official YOLO26n.pt (Bundled)")
-        self.yolo_path.set("yolo26n.pt")
+        self.det_model_mode.set("Official YOLO26m.pt (Bundled)")
+        self.yolo_path.set(self.config.yolo_model_path)
+        self._register_model_path(self.config.yolo_model_path)
         self.yolo_model = None
         self._loaded_model_key = None
 
     def _resolve_official_model_path(self) -> str:
+        candidates: list[str] = []
         try:
             packaged = resources.files("ai_labeller").joinpath("models", self.config.yolo_model_path)
             if packaged.is_file():
                 return str(packaged)
         except Exception:
-            pass
-        return self.config.yolo_model_path
+            self.logger.exception("Failed to resolve packaged official model path")
+
+        candidates.append(self.config.yolo_model_path)
+        candidates.append(os.path.join(os.path.dirname(__file__), "models", self.config.yolo_model_path))
+        candidates.append(os.path.join(os.getcwd(), self.config.yolo_model_path))
+
+        for candidate in candidates:
+            if candidate and os.path.isfile(candidate):
+                return candidate
+
+        raise FileNotFoundError(
+            f"Official model not found: {self.config.yolo_model_path}. "
+            "Please reinstall package or choose a custom model."
+        )
 
     def browse_detection_model(self) -> None:
+        self.pick_model_file()
+
+    def pick_model_file(self, forced_mode: str | None = None) -> bool:
+        self.logger.info("Opening model file dialog (mode=%s)", forced_mode or "auto")
         model_path = filedialog.askopenfilename(
+            parent=self.root,
             title="Select model",
             filetypes=[
                 ("Model files", "*.pt *.onnx"),
@@ -1362,14 +1443,400 @@ class UltimateLabeller:
             ],
         )
         if not model_path:
-            return
+            self.logger.info("Model selection cancelled")
+            return False
+        model_path = os.path.abspath(model_path)
+        if not os.path.isfile(model_path):
+            self.logger.error("Selected model file not found: %s", model_path)
+            messagebox.showerror("Model Error", f"Model file not found:\n{model_path}")
+            return False
+        if not model_path.lower().endswith((".pt", ".onnx")):
+            proceed = messagebox.askyesno(
+                "Model Warning",
+                f"Selected file may not be a YOLO model:\n{os.path.basename(model_path)}\n\nContinue?",
+            )
+            if not proceed:
+                self.logger.info("Model selection rejected by user due to extension warning")
+                return False
         self.yolo_path.set(model_path)
-        if "rfdetr" in os.path.basename(model_path).lower():
+        self._register_model_path(model_path)
+        if forced_mode:
+            self.det_model_mode.set(forced_mode)
+        elif "rfdetr" in os.path.basename(model_path).lower():
             self.det_model_mode.set("Custom RF-DETR")
         else:
             self.det_model_mode.set("Custom YOLO (v5/v7/v8/v9/v11/v26)")
         self.yolo_model = None
         self._loaded_model_key = None
+        self.save_session_state()
+        self.logger.info("Model selected: %s (%s)", model_path, self.det_model_mode.get())
+        return True
+
+    def show_startup_source_dialog(self, force: bool = False, reason: str | None = None) -> None:
+        if self._startup_dialog_open:
+            return
+        if not force and getattr(self, "_startup_dialog_shown", False):
+            return
+        self._startup_dialog_shown = True
+        self._startup_dialog_open = True
+        if reason:
+            self.logger.info("Showing startup source dialog: %s", reason)
+
+        win = tk.Toplevel(self.root)
+        win.title(LANG_MAP[self.lang]["startup_choose_source"])
+        win.geometry("420x240")
+        win.resizable(False, False)
+        win.configure(bg=COLORS["bg_light"])
+        win.transient(self.root)
+        win.grab_set()
+
+        tk.Label(
+            win,
+            text=LANG_MAP[self.lang]["startup_prompt"],
+            bg=COLORS["bg_light"],
+            fg=COLORS["text_primary"],
+            font=self.font_bold,
+            anchor="w",
+        ).pack(fill="x", padx=20, pady=(20, 14))
+
+        def choose_images() -> None:
+            self._close_startup_dialog(win)
+            self.root.after(1, lambda: self.startup_choose_images_folder("images"))
+
+        def choose_yolo() -> None:
+            self._close_startup_dialog(win)
+            self.det_model_mode.set("Custom YOLO (v5/v7/v8/v9/v11/v26)")
+            self.root.after(1, lambda: self.startup_choose_images_folder("yolo"))
+
+        def choose_rfdetr() -> None:
+            self._close_startup_dialog(win)
+            self.det_model_mode.set("Custom RF-DETR")
+            self.root.after(1, lambda: self.startup_choose_images_folder("rfdetr"))
+
+        self.create_primary_button(
+            win,
+            text=LANG_MAP[self.lang]["startup_images"],
+            command=choose_images,
+            bg=COLORS["primary"],
+        ).pack(fill="x", padx=20, pady=(0, 10))
+
+        self.create_primary_button(
+            win,
+            text=LANG_MAP[self.lang]["startup_yolo"],
+            command=choose_yolo,
+            bg=COLORS["success"],
+        ).pack(fill="x", padx=20, pady=(0, 10))
+
+        self.create_primary_button(
+            win,
+            text=LANG_MAP[self.lang]["startup_rfdetr"],
+            command=choose_rfdetr,
+            bg=COLORS["warning"],
+        ).pack(fill="x", padx=20, pady=(0, 10))
+
+        self.create_secondary_button(
+            win,
+            text=LANG_MAP[self.lang]["startup_skip"],
+            command=lambda: self._close_startup_dialog(win),
+        ).pack(fill="x", padx=20, pady=(0, 18))
+        win.protocol("WM_DELETE_WINDOW", lambda: self._close_startup_dialog(win))
+
+    def _close_startup_dialog(self, win: tk.Toplevel) -> None:
+        try:
+            win.grab_release()
+        except Exception:
+            pass
+        try:
+            win.destroy()
+        except Exception:
+            pass
+        self._startup_dialog_open = False
+        self.logger.info("Startup source dialog closed")
+
+    def _choose_model_then_images(self, mode: str) -> None:
+        try:
+            ok = self.pick_model_file(mode)
+            if not ok:
+                use_images_only = messagebox.askyesno(
+                    LANG_MAP[self.lang].get("startup_model_cancel_title", "Model Selection Cancelled"),
+                    LANG_MAP[self.lang].get(
+                        "startup_model_cancel_msg",
+                        "No model selected. Continue with images folder only?",
+                    ),
+                    parent=self.root,
+                )
+                if use_images_only:
+                    self.root.after(120, self.startup_choose_images_folder)
+                else:
+                    self.root.after(120, lambda: self.show_startup_source_dialog(force=True, reason="model selection cancelled"))
+                return
+            model_path = self.yolo_path.get().strip()
+            if not model_path or not os.path.isfile(model_path):
+                messagebox.showerror("Model Error", "Invalid model file selected. Please try again.")
+                self.root.after(120, lambda: self.show_startup_source_dialog(force=True, reason="invalid model path"))
+                return
+            # Open on next idle tick + short delay to avoid native-dialog focus races on Windows.
+            self.root.after_idle(lambda: self.root.after(180, self.startup_choose_images_folder))
+        except Exception:
+            self.logger.exception("Error while selecting model and folder")
+            messagebox.showerror("Error", "Failed during model selection.")
+            self.root.after(120, lambda: self.show_startup_source_dialog(force=True, reason="selection error"))
+
+    def return_to_source_select(self, e: Any = None) -> None:
+        if self.project_root and self.image_files:
+            try:
+                self.save_current()
+            except Exception:
+                self.logger.exception("Failed to save before returning to source selector")
+        self.show_startup_source_dialog(force=True)
+
+    def startup_choose_images_folder(self, source_mode: str = "images") -> None:
+        if self._folder_dialog_open:
+            return
+        self._folder_dialog_open = True
+        self.logger.info("=== startup_choose_images_folder START (%s) ===", source_mode)
+        try:
+            directory = filedialog.askdirectory(
+                parent=self.root,
+                title=LANG_MAP[self.lang].get("pick_folder_title", "Select Folder")
+            )
+            if not directory:
+                self.logger.info("Folder selection cancelled")
+                return
+            directory = os.path.abspath(directory)
+            self.logger.info("Selected directory: %s", directory)
+
+            diag = self.diagnose_folder_structure(directory)
+            self.logger.info("Folder diagnosis: %s", diag)
+            if not diag["is_yolo_project"] and diag["flat_images"] == 0:
+                self.show_folder_diagnosis(directory)
+                return
+
+            root_dir = self.normalize_project_root(directory)
+            yolo_root = self.find_yolo_project_root(root_dir)
+
+            try:
+                if yolo_root:
+                    self.load_project_from_path(yolo_root)
+                    if self.image_files:
+                        self.root.lift()
+                        self.root.focus_force()
+                        messagebox.showinfo(
+                            LANG_MAP[self.lang]["title"],
+                            LANG_MAP[self.lang].get(
+                                "loaded_from",
+                                "Loaded {count} images\nFrom: {path}\nSplit: {split}",
+                            ).format(
+                                count=len(self.image_files),
+                                path=yolo_root,
+                                split=self.current_split,
+                            ),
+                            parent=self.root,
+                        )
+                    else:
+                        self.show_folder_diagnosis(yolo_root)
+                    return
+
+                self.load_images_folder_only(root_dir)
+                if self.image_files:
+                    self.root.lift()
+                    self.root.focus_force()
+                    messagebox.showinfo(
+                        LANG_MAP[self.lang]["title"],
+                        LANG_MAP[self.lang].get(
+                            "loaded_from",
+                            "Loaded {count} images\nFrom: {path}\nSplit: {split}",
+                        ).format(
+                            count=len(self.image_files),
+                            path=root_dir,
+                            split=self.current_split,
+                        ),
+                        parent=self.root,
+                    )
+                else:
+                    self.show_folder_diagnosis(root_dir)
+            except Exception as exc:
+                self.logger.exception("Failed to load selected folder: %s", directory)
+                self.root.lift()
+                self.root.focus_force()
+                messagebox.showerror(
+                    "Error",
+                    f"Failed to load folder:\n{directory}\n\nError: {exc}",
+                    parent=self.root,
+                )
+        finally:
+            self._folder_dialog_open = False
+            self.logger.info("=== startup_choose_images_folder END ===")
+
+    def normalize_project_root(self, directory: str) -> str:
+        root_dir = directory.replace("\\", "/").rstrip("/")
+        base = os.path.basename(root_dir).lower()
+        parent = os.path.dirname(root_dir).replace("\\", "/")
+        parent_base = os.path.basename(parent).lower()
+        grandparent = os.path.dirname(parent).replace("\\", "/")
+
+        if base in {"train", "val", "test"} and parent_base == "images":
+            if os.path.exists(f"{grandparent}/labels"):
+                return grandparent
+        if base == "images" and os.path.exists(f"{parent}/labels"):
+            return parent
+        if base == "labels" and os.path.exists(f"{parent}/images"):
+            return parent
+        return root_dir
+
+    def find_yolo_project_root(self, directory: str) -> str | None:
+        root = directory.replace("\\", "/").rstrip("/")
+        if not root:
+            return None
+
+        def is_yolo_root(candidate: str) -> bool:
+            return any(
+                os.path.exists(f"{candidate}/images/{split}")
+                for split in ("train", "val", "test")
+            )
+
+        # Try selected folder and a few parent levels first.
+        candidates = [root]
+        parent = os.path.dirname(root).replace("\\", "/")
+        if parent and parent not in candidates:
+            candidates.append(parent)
+        grandparent = os.path.dirname(parent).replace("\\", "/") if parent else ""
+        if grandparent and grandparent not in candidates:
+            candidates.append(grandparent)
+
+        for candidate in candidates:
+            if is_yolo_root(candidate):
+                return candidate
+
+        # If user selected an upper folder, scan one level of child directories.
+        try:
+            for child in os.listdir(root):
+                child_path = os.path.join(root, child).replace("\\", "/")
+                if os.path.isdir(child_path) and is_yolo_root(child_path):
+                    return child_path
+        except Exception:
+            pass
+
+        return None
+
+    def _list_split_images_for_root(self, project_root: str, split: str) -> list[str]:
+        img_path = f"{project_root}/images/{split}"
+        return sorted([
+            f for f in glob.glob(f"{img_path}/*.*")
+            if f.lower().endswith((".png", ".jpg", ".jpeg"))
+        ])
+
+    def _existing_image_splits(self, project_root: str) -> list[str]:
+        splits: list[str] = []
+        for split in ("train", "val", "test"):
+            if os.path.isdir(f"{project_root}/images/{split}"):
+                splits.append(split)
+        return splits
+
+    def ensure_yolo_label_dirs(self, project_root: str) -> None:
+        """Ensure labels/<split> exists for every existing images/<split>."""
+        splits = self._existing_image_splits(project_root)
+        if not splits:
+            return
+        for split in splits:
+            os.makedirs(f"{project_root}/labels/{split}", exist_ok=True)
+
+    def diagnose_folder_structure(self, directory: str) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "is_yolo_project": False,
+            "has_images_folder": False,
+            "has_labels_folder": False,
+            "splits_found": [],
+            "total_images": 0,
+            "images_by_split": {},
+            "flat_images": 0,
+            "errors": [],
+        }
+        try:
+            images_path = os.path.join(directory, "images")
+            labels_path = os.path.join(directory, "labels")
+            result["has_images_folder"] = os.path.isdir(images_path)
+            result["has_labels_folder"] = os.path.isdir(labels_path)
+
+            if result["has_images_folder"]:
+                for split in ("train", "val", "test"):
+                    split_path = os.path.join(images_path, split)
+                    if not os.path.isdir(split_path):
+                        continue
+                    files = [
+                        f for f in os.listdir(split_path)
+                        if f.lower().endswith((".png", ".jpg", ".jpeg"))
+                    ]
+                    if files:
+                        result["splits_found"].append(split)
+                        result["images_by_split"][split] = len(files)
+                        result["total_images"] += len(files)
+                result["is_yolo_project"] = len(result["splits_found"]) > 0
+
+            root_images = [
+                f for f in os.listdir(directory)
+                if f.lower().endswith((".png", ".jpg", ".jpeg"))
+            ]
+            result["flat_images"] = len(root_images)
+        except Exception as exc:
+            result["errors"].append(str(exc))
+        return result
+
+    def show_folder_diagnosis(self, directory: str) -> None:
+        diag = self.diagnose_folder_structure(directory)
+        lines = [f"Folder: {directory}", ""]
+        if diag["is_yolo_project"]:
+            lines.append("YOLO project structure detected.")
+            lines.append(f"Splits: {', '.join(diag['splits_found'])}")
+            for split in ("train", "val", "test"):
+                if split in diag["images_by_split"]:
+                    lines.append(f"- {split}: {diag['images_by_split'][split]} images")
+            lines.append(f"Total images: {diag['total_images']}")
+        elif diag["flat_images"] > 0:
+            lines.append("Flat image folder detected.")
+            lines.append(f"Images found: {diag['flat_images']}")
+        else:
+            lines.append("No supported images found.")
+            lines.append("Expected either:")
+            lines.append("- folder/images/train|val|test/*.jpg")
+            lines.append("- folder/*.jpg")
+        if diag["errors"]:
+            lines.append("")
+            lines.append("Errors:")
+            for err in diag["errors"]:
+                lines.append(f"- {err}")
+        self.root.lift()
+        self.root.focus_force()
+        messagebox.showwarning("Folder Diagnosis", "\n".join(lines), parent=self.root)
+
+    def load_images_folder_only(self, directory: str) -> None:
+        self.project_root = directory
+        self.current_split = "train"
+        self.combo_split.set(self.current_split)
+
+        self.image_files = sorted([
+            f for f in glob.glob(f"{self.project_root}/*.*")
+            if f.lower().endswith((".png", ".jpg", ".jpeg"))
+        ])
+
+        os.makedirs(f"{self.project_root}/labels/{self.current_split}", exist_ok=True)
+
+        if not self.image_files:
+            messagebox.showinfo(
+                LANG_MAP[self.lang]["title"],
+                LANG_MAP[self.lang]["no_img"],
+            )
+            self.current_idx = 0
+            self.img_pil = None
+            self.img_tk = None
+            self.rects = []
+            self.update_info_text()
+            self.render()
+            self.save_session_state()
+            return
+
+        self.current_idx = 0
+        self.load_img()
 
     def on_app_close(self) -> None:
         try:
@@ -1383,7 +1850,7 @@ class UltimateLabeller:
         self.root.destroy()
 
     def render(self) -> None:
-        """皜脫??恍"""
+        """Redraw canvas image, boxes, guides, and overlays."""
         self.canvas.delete("all")
         self._cursor_line_x = None
         self._cursor_line_y = None
@@ -1393,7 +1860,7 @@ class UltimateLabeller:
         if not self.img_pil:
             return
         
-        # 1. 蝜芾ˊ敶勗?
+        # 1. ???????????
         w = int(self.img_pil.width * self.scale)
         h = int(self.img_pil.height * self.scale)
         self.img_tk = ImageTk.PhotoImage(
@@ -1406,7 +1873,7 @@ class UltimateLabeller:
             anchor="nw"
         )
         
-        # 2. 蝜芾ˊ璅酉獢?
+        # 2. ????????????
         box_colors = [
             COLORS["box_1"], COLORS["box_2"], COLORS["box_3"],
             COLORS["box_4"], COLORS["box_5"], COLORS["box_6"]
@@ -1420,14 +1887,14 @@ class UltimateLabeller:
             color = COLORS["box_selected"] if is_selected else box_colors[rect[4] % len(box_colors)]
             width = 3 if is_selected else 2
             
-            # 蝜芾ˊ?拙耦
+            # ???????????????
             self.canvas.create_rectangle(
                 x1, y1, x2, y2,
                 outline=color,
                 width=width
             )
             
-            # 蝜芾ˊ?批暺??銝剜?嚗?
+            # ????????????????????
             if is_selected:
                 for hx, hy in self.get_handles(rect):
                     cx, cy = self.img_to_canvas(hx, hy)
@@ -1442,17 +1909,17 @@ class UltimateLabeller:
                     )
             
             if self.show_all_labels:
-                # 蝜芾ˊ憿璅惜嚗葆?嚗?
+                # ?????????????????
                 class_name = (
                     self.class_names[rect[4]]
                     if rect[4] < len(self.class_names)
                     else f"ID:{rect[4]}"
                 )
                 
-                # 閮?璅惜雿蔭嚗獢?撌虫?閫??對?
-                label_y = max(y1 - 24, 8)  # 蝣箔?銝??箇??
+                # Draw a new box???????????????????????
+                label_y = max(y1 - 24, 8)  # Draw a new box???????
                 
-                # 蝜芾ˊ璅惜?
+                # ???????????
                 text_id = self.canvas.create_text(
                     x1 + 8,
                     label_y + 4,
@@ -1475,7 +1942,7 @@ class UltimateLabeller:
                     )
                     self.canvas.tag_lower(bg_id, text_id)
         
-        # 3. 蝜芾ˊ?冽???
+        # 3. Draw temporary rectangle while dragging
         if self.temp_rect_coords:
             cx, cy, ex, ey = self.temp_rect_coords
             self.canvas.create_rectangle(
@@ -1485,16 +1952,16 @@ class UltimateLabeller:
                 dash=(6, 4)
             )
         
-        # 4. 蝜芾ˊ??摰?蝺?撠平憸冽嚗?
+        # 4. Update cursor overlay
         self.update_cursor_overlay()
         
-        # ?湔鞈?憿舐內
+        # Refresh side info labels
         self.update_info_text()
     
-    # ==================== 鈭辣?? ====================
+    # ==================== Mouse Interaction ====================
     
     def on_mouse_move(self, e: Any) -> None:
-        """皛?蝘餃?"""
+        """Track cursor and refresh overlay."""
         self.mouse_pos = (e.x, e.y)
         self.update_cursor_overlay()
     
@@ -1560,13 +2027,13 @@ class UltimateLabeller:
         self.canvas.tag_lower(self._cursor_bg_id, self._cursor_text_id)
 
     def on_mouse_down(self, e):
-        """皛???"""
+        """Handle mouse press for select, move, resize, or create box."""
         if not self.img_pil:
             return
         
         ix, iy = self.canvas_to_img(e.x, e.y)
         
-        # 瑼Ｘ?臬暺??批暺?
+        # Check if one of the resize handles is selected
         if self.selected_idx is not None:
             for i, (hx, hy) in enumerate(self.get_handles(self.rects[self.selected_idx])):
                 dist = np.sqrt((ix - hx) ** 2 + (iy - hy) ** 2) * self.scale
@@ -1576,7 +2043,7 @@ class UltimateLabeller:
                     self.push_history()
                     return
         
-        # 瑼Ｘ?臬暺?獢?
+        # Check if pointer is inside an existing box
         clicked_idx = None
         for i, rect in enumerate(self.rects):
             if (min(rect[0], rect[2]) < ix < max(rect[0], rect[2]) and
@@ -1597,7 +2064,7 @@ class UltimateLabeller:
         self.render()
     
     def on_mouse_drag(self, e):
-        """皛??"""
+        """???"""
         self.mouse_pos = (e.x, e.y)
         
         if not self.img_pil or not self.drag_start:
@@ -1607,12 +2074,12 @@ class UltimateLabeller:
         ix, iy = self.canvas_to_img(e.x, e.y)
         W, H = self.img_pil.width, self.img_pil.height
         
-        # ??典????
+        # Draw a new box????
         ix = max(0, min(W, ix))
         iy = max(0, min(H, iy))
         
         if self.selected_idx is not None and self.active_handle is not None:
-            # 隤踵?批暺?
+            # ???????????
             rect = self.rects[self.selected_idx]
             if self.active_handle in [0, 6, 7]:
                 rect[0] = ix
@@ -1624,12 +2091,12 @@ class UltimateLabeller:
                 rect[3] = iy
         
         elif self.is_moving_box:
-            # 蝘餃?獢?
+            # Move selected box
             dx = ix - self.drag_start[0]
             dy = iy - self.drag_start[1]
             rect = self.rects[self.selected_idx]
             
-            # ??瑼Ｘ
+            # Keep box inside image bounds
             if rect[0] + dx < 0:
                 dx = -rect[0]
             if rect[2] + dx > W:
@@ -1646,7 +2113,7 @@ class UltimateLabeller:
             self.drag_start = (ix, iy)
         
         else:
-            # ?獢?
+            # Draw a new box
             if self.temp_rect_coords:
                 self.temp_rect_coords = (
                     self.temp_rect_coords[0],
@@ -1658,7 +2125,7 @@ class UltimateLabeller:
         self.render()
     
     def on_mouse_up(self, e):
-        """皛??暸?"""
+        """?????"""
         if self.temp_rect_coords:
             ix, iy = self.canvas_to_img(e.x, e.y)
             new_box = self.clamp_box([
@@ -1669,7 +2136,7 @@ class UltimateLabeller:
                 self.combo_cls.current()
             ])
             
-            # 瑼Ｘ獢之撠?
+            # Keep minimum box size threshold
             if (new_box[2] - new_box[0]) > 2 and (new_box[3] - new_box[1]) > 2:
                 self.push_history()
                 self.rects.append(new_box)
@@ -1686,7 +2153,7 @@ class UltimateLabeller:
         self.render()
     
     def on_zoom(self, e):
-        """皛曇憚蝮格"""
+        """Zoom image around mouse pointer."""
         factor = self.config.zoom_in_factor if e.delta > 0 else self.config.zoom_out_factor
         
         self.offset_x = e.x - (e.x - self.offset_x) * factor
@@ -1695,10 +2162,10 @@ class UltimateLabeller:
         
         self.render()
     
-    # ==================== ?詨?? ====================
+    # ==================== ???? ====================
     
     def on_class_change_request(self, e=None):
-        """憿霈"""
+        """???"""
         if self.selected_idx is not None:
             new_cid = self.combo_cls.current()
             if self.rects[self.selected_idx][4] != new_cid:
@@ -1707,7 +2174,7 @@ class UltimateLabeller:
                 self.render()
     
     def edit_classes_table(self):
-        """蝺刻摩憿銵冽"""
+        """??????????????"""
         L = LANG_MAP[self.lang]
         
         win = tk.Toplevel(self.root)
@@ -1807,7 +2274,7 @@ class UltimateLabeller:
         refresh()
 
     def reassign_labeled_class(self):
-        """撠??璅酉?寞??虫?????"""
+        """????????????????"""
         if self.selected_idx is None:
             messagebox.showinfo(LANG_MAP[self.lang]["class_mgmt"], LANG_MAP[self.lang]["no_label_selected"])
             return
@@ -1885,7 +2352,7 @@ class UltimateLabeller:
         ).pack(fill="x", padx=20, pady=(20, 16))
 
     def clear_current_labels(self):
-        """皜?砍撐????閮?"""
+        """???????????"""
         if not self.rects:
             return
         self.push_history()
@@ -2091,7 +2558,7 @@ class UltimateLabeller:
         messagebox.showinfo(LANG_MAP[self.lang]["title"], msg)
 
     def load_img(self) -> None:
-        """頛敶勗?"""
+        """????????"""
         if not self.image_files:
             return
         
@@ -2116,11 +2583,12 @@ class UltimateLabeller:
         self.drag_start = None
         self.temp_rect_coords = None
         
-        # 頛璅酉
+        # ?????
         base = os.path.splitext(os.path.basename(path))[0]
         label_path = f"{self.project_root}/labels/{self.current_split}/{base}.txt"
         
-        if os.path.exists(label_path):
+        label_exists = os.path.exists(label_path) and os.path.getsize(label_path) > 0
+        if label_exists:
             W, H = self.img_pil.width, self.img_pil.height
             try:
                 with open(label_path, 'r', encoding='utf-8') as f:
@@ -2149,7 +2617,7 @@ class UltimateLabeller:
         self.save_session_state()
     
     def save_current(self) -> None:
-        """?脣??嗅?璅酉"""
+        """?????????"""
         if not self.project_root or not self.img_pil:
             return
         
@@ -2166,6 +2634,13 @@ class UltimateLabeller:
             w = (rect[2] - rect[0]) / W
             h = (rect[3] - rect[1]) / H
             lines.append(f"{rect[4]} {cx:.6f} {cy:.6f} {w:.6f} {h:.6f}\n")
+        if not lines:
+            if os.path.exists(label_path):
+                try:
+                    os.remove(label_path)
+                except OSError:
+                    self.logger.exception("Failed to remove empty label file: %s", label_path)
+            return
         try:
             atomic_write_text(label_path, "".join(lines))
         except Exception:
@@ -2175,6 +2650,20 @@ class UltimateLabeller:
     
     def load_project_from_path(self, directory, preferred_image=None, save_session=True):
         self.project_root = directory.replace('\\', '/')
+        self.ensure_yolo_label_dirs(self.project_root)
+
+        split_files = {
+            split: self._list_split_images(split)
+            for split in ("train", "val", "test")
+            if os.path.exists(f"{self.project_root}/images/{split}")
+        }
+        non_empty_splits = [s for s, files in split_files.items() if files]
+        if non_empty_splits:
+            if self.current_split not in non_empty_splits:
+                self.current_split = "train" if "train" in non_empty_splits else non_empty_splits[0]
+        elif split_files:
+            if self.current_split not in split_files:
+                self.current_split = "train" if "train" in split_files else next(iter(split_files))
         img_path = f"{self.project_root}/images/{self.current_split}"
 
         if not os.path.exists(img_path):
@@ -2186,15 +2675,16 @@ class UltimateLabeller:
             self.save_session_state()
 
     def load_project_root(self):
-        """頛撠?"""
+        """????"""
         directory = filedialog.askdirectory()
         if not directory:
             return
-        
-        self.load_project_from_path(directory)
+        normalized = self.normalize_project_root(directory)
+        yolo_root = self.find_yolo_project_root(normalized)
+        self.load_project_from_path(yolo_root or normalized)
     
     def on_split_change(self, e=None):
-        """鞈?????"""
+        """??????"""
         if self.project_root:
             self.save_current()
             self.current_split = self.combo_split.get()
@@ -2202,14 +2692,36 @@ class UltimateLabeller:
             self.save_session_state()
     
     def load_split_data(self, preferred_image=None):
-        """頛鞈???"""
+        """??????"""
         img_path = f"{self.project_root}/images/{self.current_split}"
+
+        if self.project_root and not os.path.exists(img_path):
+            fallback = next(
+                (s for s in ("train", "val", "test") if os.path.exists(f"{self.project_root}/images/{s}")),
+                None,
+            )
+            if fallback:
+                self.current_split = fallback
+                self.combo_split.set(self.current_split)
+                img_path = f"{self.project_root}/images/{self.current_split}"
+
+        if self.project_root and os.path.exists(img_path):
+            current_files = self._list_split_images(self.current_split)
+            if not current_files:
+                fallback_non_empty = next(
+                    (
+                        s for s in ("train", "val", "test")
+                        if os.path.exists(f"{self.project_root}/images/{s}") and self._list_split_images(s)
+                    ),
+                    None,
+                )
+                if fallback_non_empty and fallback_non_empty != self.current_split:
+                    self.current_split = fallback_non_empty
+                    self.combo_split.set(self.current_split)
+                    img_path = f"{self.project_root}/images/{self.current_split}"
         
         if os.path.exists(img_path):
-            self.image_files = sorted([
-                f for f in glob.glob(f"{img_path}/*.*")
-                if f.lower().endswith(('.png', '.jpg', '.jpeg'))
-            ])
+            self.image_files = self._list_split_images(self.current_split)
             if self.image_files:
                 if preferred_image:
                     name_to_idx = {
@@ -2236,46 +2748,65 @@ class UltimateLabeller:
         
         self.render()
         self.save_session_state()
+
+    def _list_split_images(self, split: str) -> list[str]:
+        img_path = f"{self.project_root}/images/{split}"
+        return sorted([
+            f for f in glob.glob(f"{img_path}/*.*")
+            if f.lower().endswith(('.png', '.jpg', '.jpeg'))
+        ])
     
-    def autolabel_red(self):
-        """蝝??菜葫"""
+    def autolabel_red(self) -> None:
+        """Auto-label reddish regions using LAB + contour filtering."""
         if not HAS_CV2 or not self.img_pil:
             return
-        
-        self.push_history()
-        
-        img = cv2.cvtColor(np.array(self.img_pil), cv2.COLOR_RGB2BGR)
-        lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-        _, a, _ = cv2.split(lab)
-        _, red = cv2.threshold(a, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        
-        kernel = np.ones((5, 5), np.uint8)
-        red = cv2.dilate(red, kernel, iterations=3)
-        
-        contours, _ = cv2.findContours(
-            red,
-            cv2.RETR_EXTERNAL,
-            cv2.CHAIN_APPROX_SIMPLE
-        )
-        
-        for contour in contours:
-            x, y, w, h = cv2.boundingRect(contour)
-            if w * h > self.config.auto_label_min_area:
-                self.rects.append(self.clamp_box([
-                    x, y, x + w, y + h,
-                    self.combo_cls.current()
-                ]))
-        
-        self.render()
+        try:
+            self.push_history()
+
+            img = cv2.cvtColor(np.array(self.img_pil), cv2.COLOR_RGB2BGR)
+            lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+            _, a, _ = cv2.split(lab)
+            _, red = cv2.threshold(a, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+            k = max(1, int(self.config.red_detection_kernel_size))
+            kernel = np.ones((k, k), np.uint8)
+            red = cv2.dilate(
+                red,
+                kernel,
+                iterations=max(1, int(self.config.red_detection_dilate_iterations)),
+            )
+
+            contours, _ = cv2.findContours(
+                red,
+                cv2.RETR_EXTERNAL,
+                cv2.CHAIN_APPROX_SIMPLE
+            )
+
+            for contour in contours:
+                x, y, w, h = cv2.boundingRect(contour)
+                if w * h > self.config.auto_label_min_area:
+                    self.rects.append(self.clamp_box([
+                        x, y, x + w, y + h,
+                        self.combo_cls.current()
+                    ]))
+
+            self.render()
+        except Exception:
+            self.logger.exception("Red auto-label failed")
+            messagebox.showerror("Error", "Red auto-label failed. See logs for details.")
     
     def run_yolo_detection(self):
-        """?瑁? YOLO ?菜葫"""
-        if not HAS_YOLO or not self.img_pil:
+        """Run detection by the selected model and append boxes."""
+        if not HAS_YOLO:
+            messagebox.showwarning("YOLO Not Available", "Please install ultralytics first.")
+            return
+        if not self.img_pil:
+            messagebox.showwarning("No Image", "Please load an image first.")
             return
         
         try:
             mode = self.det_model_mode.get()
-            if mode == "Official YOLO26n.pt (Bundled)":
+            if mode == "Official YOLO26m.pt (Bundled)":
                 model_path = self._resolve_official_model_path()
             else:
                 model_path = self.yolo_path.get().strip()
@@ -2283,11 +2814,33 @@ class UltimateLabeller:
             if not model_path:
                 messagebox.showwarning("Model", "Please choose a model file first.")
                 return
+            model_path = os.path.abspath(model_path)
+            if not os.path.exists(model_path):
+                messagebox.showerror("Model Not Found", f"Model file not found:\n{model_path}")
+                return
+            if not os.path.isfile(model_path):
+                messagebox.showerror("Model Error", f"Path is not a file:\n{model_path}")
+                return
 
             loaded_key = (mode, model_path)
             if self.yolo_model is None or self._loaded_model_key != loaded_key:
-                self.yolo_model = YOLO(model_path)
-                self._loaded_model_key = loaded_key
+                self.root.config(cursor="watch")
+                self.root.update_idletasks()
+                if self.yolo_model is not None:
+                    del self.yolo_model
+                    self.yolo_model = None
+                    gc.collect()
+                try:
+                    self.logger.info("Loading YOLO model: %s", model_path)
+                    self.yolo_model = YOLO(model_path)
+                    self._loaded_model_key = loaded_key
+                except Exception as exc:
+                    self.yolo_model = None
+                    self._loaded_model_key = None
+                    raise RuntimeError(f"Failed to load model: {exc}") from exc
+                finally:
+                    self.root.config(cursor="")
+                    self.root.update_idletasks()
 
             results = self.yolo_model(
                 self.img_pil,
@@ -2296,8 +2849,10 @@ class UltimateLabeller:
             )
             
             self.push_history()
-            
+            detection_count = 0
             for result in results:
+                if result.boxes is None:
+                    continue
                 for box in result.boxes.xyxy:
                     self.rects.append(self.clamp_box([
                         box[0].item(),
@@ -2306,20 +2861,154 @@ class UltimateLabeller:
                         box[3].item(),
                         self.combo_cls.current()
                     ]))
+                    detection_count += 1
             
             self.render()
-        except Exception:
+            self.logger.info("YOLO detection complete: %s boxes", detection_count)
+        except FileNotFoundError as exc:
+            self.logger.error("Model path error: %s", exc)
+            messagebox.showerror("Model Error", str(exc))
+        except MemoryError:
+            self.logger.exception("Out of memory during YOLO detection")
+            messagebox.showerror("Memory Error", "Not enough memory for detection.")
+        except RuntimeError as exc:
+            self.logger.exception("YOLO runtime error")
+            messagebox.showerror("Detection Error", str(exc))
+        except Exception as exc:
             self.logger.exception("YOLO detection failed")
-            messagebox.showerror("Error", "YOLO detection failed. See logs for details.")
+            messagebox.showerror("Detection Error", f"YOLO detection failed:\n{exc}")
+
+    def _iter_export_images(self) -> list[tuple[str, str, str]]:
+        """Return (split, image_path, label_path) entries for full-dataset export."""
+        entries: list[tuple[str, str, str]] = []
+        if not self.project_root:
+            return entries
+
+        split_roots = [s for s in ("train", "val", "test") if os.path.isdir(f"{self.project_root}/images/{s}")]
+        if split_roots:
+            for split in split_roots:
+                for img_path in self._list_split_images_for_root(self.project_root, split):
+                    base = os.path.splitext(os.path.basename(img_path))[0]
+                    lbl_path = f"{self.project_root}/labels/{split}/{base}.txt"
+                    entries.append((split, img_path, lbl_path))
+            return entries
+
+        # Flat image folder mode
+        for img_path in sorted(
+            f for f in glob.glob(f"{self.project_root}/*.*")
+            if f.lower().endswith((".png", ".jpg", ".jpeg"))
+        ):
+            base = os.path.splitext(os.path.basename(img_path))[0]
+            lbl_path = f"{self.project_root}/labels/train/{base}.txt"
+            entries.append(("train", img_path, lbl_path))
+        return entries
+
+    def export_all_by_selected_format(self) -> None:
+        if not self.project_root:
+            messagebox.showwarning(LANG_MAP[self.lang]["title"], LANG_MAP[self.lang]["export_no_project"], parent=self.root)
+            return
+        if self.image_files and self.img_pil:
+            self.save_current()
+
+        out_dir = filedialog.askdirectory(
+            parent=self.root,
+            title=LANG_MAP[self.lang].get("select_export_folder", "Select Export Folder")
+        )
+        if not out_dir:
+            return
+        out_dir = out_dir.replace("\\", "/")
+
+        fmt = self.var_export_format.get()
+        try:
+            if fmt == "YOLO (.txt)":
+                count = self._export_all_yolo(out_dir)
+            else:
+                count = self._export_all_json(out_dir)
+            messagebox.showinfo(
+                LANG_MAP[self.lang]["title"],
+                LANG_MAP[self.lang].get("export_done", "Export completed: {count} images\nOutput: {path}").format(
+                    count=count,
+                    path=out_dir,
+                ),
+                parent=self.root,
+            )
+        except Exception as exc:
+            self.logger.exception("Export failed")
+            messagebox.showerror(
+                LANG_MAP[self.lang]["title"],
+                LANG_MAP[self.lang].get("export_failed", "Export failed: {err}").format(err=exc),
+                parent=self.root,
+            )
+
+    def _export_all_yolo(self, out_dir: str) -> int:
+        count = 0
+        for split, img_path, lbl_path in self._iter_export_images():
+            dst_img_dir = f"{out_dir}/images/{split}"
+            dst_lbl_dir = f"{out_dir}/labels/{split}"
+            os.makedirs(dst_img_dir, exist_ok=True)
+            os.makedirs(dst_lbl_dir, exist_ok=True)
+
+            shutil.copy2(img_path, f"{dst_img_dir}/{os.path.basename(img_path)}")
+            if os.path.isfile(lbl_path):
+                shutil.copy2(lbl_path, f"{dst_lbl_dir}/{os.path.basename(lbl_path)}")
+            count += 1
+        return count
+
+    def _export_all_json(self, out_dir: str) -> int:
+        count = 0
+        for split, img_path, lbl_path in self._iter_export_images():
+            dst_img_dir = f"{out_dir}/images/{split}"
+            dst_ann_dir = f"{out_dir}/annotations/{split}"
+            os.makedirs(dst_img_dir, exist_ok=True)
+            os.makedirs(dst_ann_dir, exist_ok=True)
+
+            img_name = os.path.basename(img_path)
+            base = os.path.splitext(img_name)[0]
+            shutil.copy2(img_path, f"{dst_img_dir}/{img_name}")
+
+            with Image.open(img_path) as im:
+                width, height = im.width, im.height
+
+            anns: list[dict[str, Any]] = []
+            if os.path.isfile(lbl_path):
+                with open(lbl_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        parts = line.strip().split()
+                        if len(parts) != 5:
+                            continue
+                        cls_id = int(float(parts[0]))
+                        cx, cy, w, h = map(float, parts[1:])
+                        x1 = (cx - w / 2) * width
+                        y1 = (cy - h / 2) * height
+                        x2 = (cx + w / 2) * width
+                        y2 = (cy + h / 2) * height
+                        cls_name = self.class_names[cls_id] if 0 <= cls_id < len(self.class_names) else str(cls_id)
+                        anns.append({
+                            "class_id": cls_id,
+                            "class_name": cls_name,
+                            "bbox_xyxy": [x1, y1, x2, y2],
+                            "bbox_yolo": [cx, cy, w, h],
+                        })
+
+            payload = {
+                "image": img_name,
+                "split": split,
+                "width": width,
+                "height": height,
+                "annotations": anns,
+            }
+            atomic_write_json(f"{dst_ann_dir}/{base}.json", payload)
+            count += 1
+        return count
     
     def export_full_coco(self):
-        """?臬 COCO"""
-        messagebox.showinfo("Export", "COCO ?臬?靽?銝?")
+        """Export dataset as COCO (placeholder)."""
+        messagebox.showinfo("Export", "COCO export will be implemented.")
     
-    # ==================== 頛?賣 ====================
+    # ==================== Geometry ====================
     
     def clamp_box(self, box):
-        """?獢??蝭???"""
+        """Clamp and normalize box coordinates to image bounds."""
         if not self.img_pil:
             return box
         
@@ -2336,7 +3025,7 @@ class UltimateLabeller:
         ]
     
     def get_handles(self, rect):
-        """???批暺?蝵?"""
+        """??????????"""
         x1, y1, x2, y2 = rect[:4]
         xm = (x1 + x2) / 2
         ym = (y1 + y2) / 2
@@ -2347,19 +3036,19 @@ class UltimateLabeller:
         ]
     
     def canvas_to_img(self, x, y):
-        """Canvas 摨扳?頧蔣?漣璅?"""
+        """Canvas ???????????????"""
         return (x - self.offset_x) / self.scale, (y - self.offset_y) / self.scale
     
     def img_to_canvas(self, x, y):
-        """敶勗?摨扳?頧?Canvas 摨扳?"""
+        """????????????Canvas ??????"""
         return x * self.scale + self.offset_x, y * self.scale + self.offset_y
     
     def push_history(self) -> None:
-        """?脣?甇瑕"""
+        """??????"""
         self.history_manager.push_snapshot(self.rects)
     
     def undo(self) -> None:
-        """?日"""
+        """Undo last edit."""
         if self.history_manager.undo():
             self.render()
     
@@ -2369,19 +3058,19 @@ class UltimateLabeller:
             self.render()
     
     def save_and_next(self):
-        """?脣?銝虫?銝撘?"""
+        """??????????????????"""
         self.save_current()
         self.current_idx = min(len(self.image_files) - 1, self.current_idx + 1)
         self.load_img()
     
     def prev_img(self):
-        """銝?撘?"""
+        """????"""
         self.save_current()
         self.current_idx = max(0, self.current_idx - 1)
         self.load_img()
     
     def bind_events(self):
-        """蝬?鈭辣"""
+        """Bind mouse and keyboard shortcuts."""
         self.canvas.bind("<Motion>", self.on_mouse_move)
         self.canvas.bind("<ButtonPress-1>", self.on_mouse_down)
         self.canvas.bind("<B1-Motion>", self.on_mouse_drag)
@@ -2413,13 +3102,16 @@ class UltimateLabeller:
         if cw <= 1 or ch <= 1:
             return
         iw, ih = self.img_pil.width, self.img_pil.height
+        if iw <= 0 or ih <= 0:
+            self.logger.warning("Invalid image size: %sx%s", iw, ih)
+            return
         scale = min(cw / iw, ch / ih)
         self.scale = scale
         self.offset_x = (cw - iw * scale) / 2
         self.offset_y = (ch - ih * scale) / 2
         self.render()
 
-# ==================== 銝餌?撘??====================
+# ==================== Entrypoint ====================
 def main():
     root = tk.Tk()
     app = UltimateLabeller(root)
