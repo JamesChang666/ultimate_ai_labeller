@@ -312,6 +312,7 @@ class UltimateLabeller:
         self.img_pil = None
         self.img_tk = None
         self.selected_idx = None
+        self.selected_indices: set[int] = set()
         self.active_handle = None
         self.is_moving_box = False
         self.drag_start = None
@@ -421,11 +422,79 @@ class UltimateLabeller:
     
     def delete_selected(self, e=None):
         """?????????????"""
-        if self.selected_idx is not None:
-            self.push_history()
-            self.rects.pop(self.selected_idx)
+        focus_widget = self.root.focus_get()
+        if focus_widget is not None:
+            try:
+                if focus_widget.winfo_toplevel() is not self.root:
+                    return "break"
+            except Exception:
+                pass
+        selected = self._get_selected_indices()
+        if not selected:
+            return "break"
+        self.push_history()
+        for idx in sorted(selected, reverse=True):
+            self.rects.pop(idx)
+        self._set_selected_indices([])
+        self.render()
+        return "break"
+
+    def select_all_boxes(self, e=None):
+        if not self.rects:
+            return "break"
+        all_indices = list(range(len(self.rects)))
+        self._set_selected_indices(all_indices, primary_idx=all_indices[-1])
+        self._sync_class_combo_with_selection()
+        self.render()
+        return "break"
+
+    def _get_selected_indices(self) -> list[int]:
+        valid = [idx for idx in self.selected_indices if 0 <= idx < len(self.rects)]
+        if self.selected_idx is not None and 0 <= self.selected_idx < len(self.rects) and self.selected_idx not in valid:
+            valid.append(self.selected_idx)
+        valid.sort()
+        return valid
+
+    def _set_selected_indices(self, indices: list[int], primary_idx: int | None = None) -> None:
+        valid = sorted({idx for idx in indices if 0 <= idx < len(self.rects)})
+        self.selected_indices = set(valid)
+        if not valid:
             self.selected_idx = None
-            self.render()
+            return
+
+        if primary_idx is not None and primary_idx in self.selected_indices:
+            self.selected_idx = primary_idx
+        elif self.selected_idx in self.selected_indices:
+            pass
+        else:
+            self.selected_idx = valid[-1]
+
+    def _sync_class_combo_with_selection(self) -> None:
+        selected = self._get_selected_indices()
+        if not selected:
+            return
+        class_ids = {self.rects[idx][4] for idx in selected}
+        if len(class_ids) != 1:
+            return
+        only_cid = int(next(iter(class_ids)))
+        if 0 <= only_cid < len(self.class_names):
+            self.combo_cls.current(only_cid)
+
+    def _pick_box_at_point(self, ix: float, iy: float) -> int | None:
+        candidates: list[tuple[float, int]] = []
+        for idx, rect in enumerate(self.rects):
+            x1 = min(rect[0], rect[2])
+            y1 = min(rect[1], rect[3])
+            x2 = max(rect[0], rect[2])
+            y2 = max(rect[1], rect[3])
+            if x1 < ix < x2 and y1 < iy < y2:
+                area = max(1.0, (x2 - x1) * (y2 - y1))
+                candidates.append((area, idx))
+        if not candidates:
+            return None
+        # For nested/overlapping boxes, prioritize smaller area so inner box is easier to adjust.
+        candidates.sort(key=lambda item: (item[0], -item[1]))
+        return candidates[0][1]
     
     def setup_ui(self):
         # ==================== ??????====================
@@ -1341,6 +1410,65 @@ class UltimateLabeller:
         if hasattr(self, "combo_model_path"):
             self.combo_model_path.configure(values=self.model_library)
 
+    def _refresh_class_dropdown(self, preferred_idx: int | None = None) -> None:
+        if not hasattr(self, "combo_cls"):
+            return
+        self.combo_cls.configure(values=self.class_names)
+        if not self.class_names:
+            return
+        current_idx = self.combo_cls.current() if preferred_idx is None else preferred_idx
+        if current_idx < 0 or current_idx >= len(self.class_names):
+            current_idx = 0
+        self.combo_cls.current(current_idx)
+
+    def _ensure_class_name(self, class_name: str, fallback_id: int | None = None) -> int:
+        normalized_name = class_name.strip()
+        if not normalized_name:
+            if fallback_id is not None and 0 <= fallback_id < len(self.class_names):
+                return fallback_id
+            normalized_name = f"class_{fallback_id}" if fallback_id is not None else "object"
+
+        if normalized_name in self.class_names:
+            return self.class_names.index(normalized_name)
+
+        previous_idx = self.combo_cls.current() if hasattr(self, "combo_cls") else 0
+        self.class_names.append(normalized_name)
+        self._refresh_class_dropdown(preferred_idx=previous_idx)
+        return len(self.class_names) - 1
+
+    def _resolve_detected_class_index(self, result: Any, det_idx: int, fallback_idx: int) -> int:
+        model_class_id: int | None = None
+        model_class_name: str | None = None
+
+        boxes = getattr(result, "boxes", None)
+        cls_values = getattr(boxes, "cls", None)
+        if cls_values is not None and det_idx < len(cls_values):
+            model_class_id = int(cls_values[det_idx].item())
+
+        names = getattr(result, "names", None)
+        if model_class_id is not None and names is not None:
+            if isinstance(names, dict):
+                model_class_name = names.get(model_class_id)
+            elif isinstance(names, (list, tuple)) and 0 <= model_class_id < len(names):
+                model_class_name = names[model_class_id]
+
+        if model_class_name is None and model_class_id is not None and self.yolo_model is not None:
+            model_names = getattr(self.yolo_model, "names", None)
+            if isinstance(model_names, dict):
+                model_class_name = model_names.get(model_class_id)
+            elif isinstance(model_names, (list, tuple)) and 0 <= model_class_id < len(model_names):
+                model_class_name = model_names[model_class_id]
+
+        if isinstance(model_class_name, str) and model_class_name.strip():
+            return self._ensure_class_name(model_class_name, fallback_id=model_class_id)
+
+        if model_class_id is not None:
+            if 0 <= model_class_id < len(self.class_names):
+                return model_class_id
+            return self._ensure_class_name("", fallback_id=model_class_id)
+
+        return fallback_idx
+
     def save_session_state(self) -> None:
         state = SessionState(
             project_root=self.project_root,
@@ -1879,11 +2007,12 @@ class UltimateLabeller:
             COLORS["box_4"], COLORS["box_5"], COLORS["box_6"]
         ]
         
+        selected_set = set(self._get_selected_indices())
         for i, rect in enumerate(self.rects):
             x1, y1 = self.img_to_canvas(rect[0], rect[1])
             x2, y2 = self.img_to_canvas(rect[2], rect[3])
             
-            is_selected = (i == self.selected_idx)
+            is_selected = i in selected_set
             color = COLORS["box_selected"] if is_selected else box_colors[rect[4] % len(box_colors)]
             width = 3 if is_selected else 2
             
@@ -1895,7 +2024,7 @@ class UltimateLabeller:
             )
             
             # ????????????????????
-            if is_selected:
+            if is_selected and self.selected_idx == i and len(selected_set) == 1:
                 for hx, hy in self.get_handles(rect):
                     cx, cy = self.img_to_canvas(hx, hy)
                     self.canvas.create_oval(
@@ -2032,9 +2161,10 @@ class UltimateLabeller:
             return
         
         ix, iy = self.canvas_to_img(e.x, e.y)
+        is_additive_select = bool(e.state & 0x0001) or bool(e.state & 0x0004)
         
         # Check if one of the resize handles is selected
-        if self.selected_idx is not None:
+        if self.selected_idx is not None and len(self._get_selected_indices()) == 1 and not is_additive_select:
             for i, (hx, hy) in enumerate(self.get_handles(self.rects[self.selected_idx])):
                 dist = np.sqrt((ix - hx) ** 2 + (iy - hy) ** 2) * self.scale
                 if dist < self.config.mouse_handle_hit_radius_px:
@@ -2044,20 +2174,28 @@ class UltimateLabeller:
                     return
         
         # Check if pointer is inside an existing box
-        clicked_idx = None
-        for i, rect in enumerate(self.rects):
-            if (min(rect[0], rect[2]) < ix < max(rect[0], rect[2]) and
-                min(rect[1], rect[3]) < iy < max(rect[1], rect[3])):
-                clicked_idx = i
+        clicked_idx = self._pick_box_at_point(ix, iy)
         
         if clicked_idx is not None:
-            self.selected_idx = clicked_idx
-            self.is_moving_box = True
-            self.drag_start = (ix, iy)
-            self.combo_cls.current(self.rects[clicked_idx][4])
-            self.push_history()
+            if is_additive_select:
+                selected = self._get_selected_indices()
+                if clicked_idx in selected:
+                    selected = [idx for idx in selected if idx != clicked_idx]
+                else:
+                    selected.append(clicked_idx)
+                self._set_selected_indices(selected, primary_idx=clicked_idx if clicked_idx in selected else None)
+                self._sync_class_combo_with_selection()
+                self.is_moving_box = False
+                self.drag_start = None
+            else:
+                self._set_selected_indices([clicked_idx], primary_idx=clicked_idx)
+                self.is_moving_box = True
+                self.drag_start = (ix, iy)
+                self._sync_class_combo_with_selection()
+                self.push_history()
         else:
-            self.selected_idx = None
+            if not is_additive_select:
+                self._set_selected_indices([])
             self.drag_start = (ix, iy)
             self.temp_rect_coords = (e.x, e.y, e.x, e.y)
         
@@ -2094,22 +2232,22 @@ class UltimateLabeller:
             # Move selected box
             dx = ix - self.drag_start[0]
             dy = iy - self.drag_start[1]
-            rect = self.rects[self.selected_idx]
-            
-            # Keep box inside image bounds
-            if rect[0] + dx < 0:
-                dx = -rect[0]
-            if rect[2] + dx > W:
-                dx = W - rect[2]
-            if rect[1] + dy < 0:
-                dy = -rect[1]
-            if rect[3] + dy > H:
-                dy = H - rect[3]
-            
-            rect[0] += dx
-            rect[1] += dy
-            rect[2] += dx
-            rect[3] += dy
+            selected = self._get_selected_indices()
+            if not selected and self.selected_idx is not None:
+                selected = [self.selected_idx]
+            if selected:
+                min_dx = max(-self.rects[idx][0] for idx in selected)
+                max_dx = min(W - self.rects[idx][2] for idx in selected)
+                min_dy = max(-self.rects[idx][1] for idx in selected)
+                max_dy = min(H - self.rects[idx][3] for idx in selected)
+                clamped_dx = min(max(dx, min_dx), max_dx)
+                clamped_dy = min(max(dy, min_dy), max_dy)
+                for idx in selected:
+                    rect = self.rects[idx]
+                    rect[0] += clamped_dx
+                    rect[1] += clamped_dy
+                    rect[2] += clamped_dx
+                    rect[3] += clamped_dy
             self.drag_start = (ix, iy)
         
         else:
@@ -2143,10 +2281,8 @@ class UltimateLabeller:
             
             self.temp_rect_coords = None
         
-        if self.selected_idx is not None:
-            self.rects[self.selected_idx] = self.clamp_box(
-                self.rects[self.selected_idx]
-            )
+        for idx in self._get_selected_indices():
+            self.rects[idx] = self.clamp_box(self.rects[idx])
         
         self.is_moving_box = False
         self.active_handle = None
@@ -2166,12 +2302,17 @@ class UltimateLabeller:
     
     def on_class_change_request(self, e=None):
         """???"""
-        if self.selected_idx is not None:
-            new_cid = self.combo_cls.current()
-            if self.rects[self.selected_idx][4] != new_cid:
-                self.push_history()
-                self.rects[self.selected_idx][4] = new_cid
-                self.render()
+        selected = self._get_selected_indices()
+        if not selected:
+            return
+        new_cid = self.combo_cls.current()
+        if new_cid < 0:
+            return
+        if any(self.rects[idx][4] != new_cid for idx in selected):
+            self.push_history()
+            for idx in selected:
+                self.rects[idx][4] = new_cid
+            self.render()
     
     def edit_classes_table(self):
         """??????????????"""
@@ -2275,7 +2416,8 @@ class UltimateLabeller:
 
     def reassign_labeled_class(self):
         """????????????????"""
-        if self.selected_idx is None:
+        selected = self._get_selected_indices()
+        if not selected:
             messagebox.showinfo(LANG_MAP[self.lang]["class_mgmt"], LANG_MAP[self.lang]["no_label_selected"])
             return
         if not self.class_names:
@@ -2287,12 +2429,17 @@ class UltimateLabeller:
         win.geometry("420x220")
         win.configure(bg=COLORS["bg_light"])
 
-        current_idx = self.rects[self.selected_idx][4]
-        current_name = (
-            self.class_names[current_idx]
-            if current_idx < len(self.class_names)
-            else str(current_idx)
-        )
+        selected_class_ids = {self.rects[idx][4] for idx in selected}
+        if len(selected_class_ids) == 1:
+            current_idx = int(next(iter(selected_class_ids)))
+            current_name = (
+                self.class_names[current_idx]
+                if current_idx < len(self.class_names)
+                else str(current_idx)
+            )
+        else:
+            current_idx = self.combo_cls.current()
+            current_name = f"Multiple ({len(selected)} boxes)"
 
         tk.Label(
             win,
@@ -2312,7 +2459,7 @@ class UltimateLabeller:
             anchor="w"
         ).pack(fill="x", padx=20, pady=(10, 6))
 
-        to_default = self.class_names[current_idx] if current_idx < len(self.class_names) else self.class_names[0]
+        to_default = self.class_names[current_idx] if 0 <= current_idx < len(self.class_names) else self.class_names[0]
         to_var = tk.StringVar(value=to_default)
         ttk.Combobox(
             win,
@@ -2330,12 +2477,13 @@ class UltimateLabeller:
                 win.destroy()
                 return
 
-            if self.rects[self.selected_idx][4] == to_idx:
+            if all(self.rects[idx][4] == to_idx for idx in selected):
                 win.destroy()
                 return
 
             self.push_history()
-            self.rects[self.selected_idx][4] = to_idx
+            for idx in selected:
+                self.rects[idx][4] = to_idx
             self.combo_cls.current(to_idx)
             self.render()
             win.destroy()
@@ -2358,6 +2506,7 @@ class UltimateLabeller:
         self.push_history()
         self.rects = []
         self.selected_idx = None
+        self.selected_indices = set()
         self.active_handle = None
         self.is_moving_box = False
         self.drag_start = None
@@ -2439,6 +2588,7 @@ class UltimateLabeller:
             self.rects = []
             self.history_manager.clear()
             self.selected_idx = None
+            self.selected_indices = set()
             self.active_handle = None
             self.is_moving_box = False
             self.drag_start = None
@@ -2578,6 +2728,7 @@ class UltimateLabeller:
         self.rects = []
         self.history_manager.clear()
         self.selected_idx = None
+        self.selected_indices = set()
         self.active_handle = None
         self.is_moving_box = False
         self.drag_start = None
@@ -2850,16 +3001,20 @@ class UltimateLabeller:
             
             self.push_history()
             detection_count = 0
+            fallback_class_idx = self.combo_cls.current()
+            if fallback_class_idx < 0:
+                fallback_class_idx = 0
             for result in results:
                 if result.boxes is None:
                     continue
-                for box in result.boxes.xyxy:
+                for det_idx, box in enumerate(result.boxes.xyxy):
+                    class_idx = self._resolve_detected_class_index(result, det_idx, fallback_class_idx)
                     self.rects.append(self.clamp_box([
                         box[0].item(),
                         box[1].item(),
                         box[2].item(),
                         box[3].item(),
-                        self.combo_cls.current()
+                        class_idx
                     ]))
                     detection_count += 1
             
@@ -3087,7 +3242,12 @@ class UltimateLabeller:
         self.root.bind("<Control-z>", lambda e: self.undo())
         self.root.bind("<Control-Z>", lambda e: self.undo())
         self.root.bind("<Control-y>", lambda e: self.redo())
+        self.root.bind("<Control-a>", self.select_all_boxes)
+        self.root.bind("<Control-A>", self.select_all_boxes)
         self.root.bind("<Delete>", self.delete_selected)
+        self.root.bind("<KP_Delete>", self.delete_selected)
+        self.canvas.bind("<Delete>", self.delete_selected)
+        self.canvas.bind("<KP_Delete>", self.delete_selected)
 
     def on_canvas_resize(self, e):
         if not self.img_pil:
