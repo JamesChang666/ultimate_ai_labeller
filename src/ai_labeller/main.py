@@ -702,14 +702,17 @@ class GeckoAI:
         self.setup_sidebar()
         
         # ==================== Canvas ====================
+        canvas_wrap = tk.Frame(self.root, bg=COLORS["bg_canvas"])
+        canvas_wrap.pack(side="left", fill="both", expand=True)
+
         self.canvas = tk.Canvas(
-            self.root,
+            canvas_wrap,
             bg=COLORS["bg_canvas"],
             cursor="none",
             highlightthickness=0,
             relief="flat"
         )
-        self.canvas.pack(fill="both", expand=True)
+        self.canvas.pack(side="left", fill="both", expand=True)
     
     def setup_toolbar(self):
         """Build the top toolbar."""
@@ -743,13 +746,16 @@ class GeckoAI:
         logo.bind("<Button-1>", self.return_to_source_select)
         logo.bind("<Enter>", lambda _e: logo.config(cursor="hand2"))
         
-        tk.Label(
+        title_label = tk.Label(
             title_frame,
             text=LANG_MAP[self.lang]["title"],
             font=self.font_title,
             fg=self.toolbar_text_color(COLORS["bg_dark"]),
             bg=COLORS["bg_dark"]
-        ).pack(side="left")
+        )
+        title_label.pack(side="left")
+        title_label.bind("<Button-1>", self.return_to_source_select)
+        title_label.bind("<Enter>", lambda _e: title_label.config(cursor="hand2"))
         
         # Vertical divider
         tk.Frame(
@@ -810,31 +816,43 @@ class GeckoAI:
         # Undo/redo
         self.create_toolbar_icon_button(
             center_frame,
-            text="U",
+            text="←",
             command=self.undo,
             tooltip=LANG_MAP[self.lang]["undo"]
         ).pack(side="left", padx=2)
         
         self.create_toolbar_icon_button(
             center_frame,
-            text="R",
+            text="→",
             command=self.redo,
             tooltip=LANG_MAP[self.lang]["redo"]
         ).pack(side="left", padx=2)
         
-        tk.Frame(center_frame, width=1, bg=COLORS["divider"]).pack(
-            side="left", fill="y", padx=8
-        )
-        
-        # AI quick action
-        self.create_toolbar_icon_button(
+        tk.Frame(center_frame, width=1, bg=COLORS["divider"]).pack(side="left", fill="y", padx=8, pady=10)
+
+        ttk.Combobox(
             center_frame,
-            text="?",
-            command=self.autolabel_red,
-            tooltip=LANG_MAP[self.lang]["autolabel"],
-            bg=COLORS["danger"]
-        ).pack(side="left", padx=2)
-        
+            textvariable=self.var_export_format,
+            values=["YOLO (.txt)", "JSON"],
+            state="readonly",
+            width=12,
+            font=self.font_primary,
+        ).pack(side="left", padx=(0, 6), pady=12)
+
+        self.create_toolbar_button(
+            center_frame,
+            text=LANG_MAP[self.lang]["export"],
+            command=self.export_all_by_selected_format,
+            bg=COLORS["info"],
+        ).pack(side="left", padx=2, pady=8)
+
+        self.create_toolbar_button(
+            center_frame,
+            text="Golden",
+            command=self.export_golden_folder,
+            bg=COLORS["warning"],
+        ).pack(side="left", padx=2, pady=8)
+
         # Right section
         right_frame = tk.Frame(toolbar, bg=COLORS["bg_dark"])
         right_frame.pack(side="right", fill="y", padx=16)
@@ -909,7 +927,6 @@ class GeckoAI:
         items = [
             ("F", LANG_MAP[self.lang]["next"]),
             ("D", LANG_MAP[self.lang]["prev"]),
-            ("A", LANG_MAP[self.lang]["autolabel"]),
             ("Q / E", "Rotate selected box"),
             ("Ctrl+Z", LANG_MAP[self.lang]["undo"]),
             ("Ctrl+Y", LANG_MAP[self.lang]["redo"]),
@@ -922,7 +939,7 @@ class GeckoAI:
 
     def show_shortcut_tooltip(self, widget):
         self.hide_shortcut_tooltip()
-        self._tooltip_after_id = self.root.after(1000, lambda: self._show_tooltip_now(widget))
+        self._show_tooltip_now(widget)
 
     def _show_tooltip_now(self, widget):
         if self._tooltip_win:
@@ -1066,18 +1083,29 @@ class GeckoAI:
         sidebar = tk.Frame(self.root, width=320, bg=COLORS["bg_light"])
         sidebar.pack(side="right", fill="y")
         sidebar.pack_propagate(False)
+
+        # Keep tools in a dedicated scroll area; navigation stays fixed at bottom.
+        scroll_wrap = tk.Frame(sidebar, bg=COLORS["bg_light"])
+        scroll_wrap.pack(side="top", fill="both", expand=True)
         
         # Scrollable container
         self.sidebar_canvas = tk.Canvas(
-            sidebar,
+            scroll_wrap,
             bg=COLORS["bg_light"],
             highlightthickness=0,
             relief="flat"
         )
-        self.sidebar_scrollbar = ttk.Scrollbar(
-            sidebar,
+        self.sidebar_scrollbar = tk.Scrollbar(
+            scroll_wrap,
             orient="vertical",
-            command=self.sidebar_canvas.yview
+            command=self.sidebar_canvas.yview,
+            width=24,
+            bg=COLORS["bg_medium"],
+            troughcolor=COLORS["bg_dark"],
+            activebackground=COLORS["primary"],
+            highlightthickness=0,
+            relief="flat",
+            borderwidth=0,
         )
         self.sidebar_scroll_frame = tk.Frame(self.sidebar_canvas, bg=COLORS["bg_light"])
         
@@ -1102,15 +1130,17 @@ class GeckoAI:
         # ===== AI tools card =====
         self.create_ai_card(self.sidebar_scroll_frame)
         
-        # ===== Shortcut card =====
-        self.create_shortcut_card(self.sidebar_scroll_frame)
-        
         # ===== Navigation =====
         self.create_navigation(sidebar)
         self._bind_sidebar_mousewheel(self.sidebar_scroll_frame)
         
-        self.sidebar_canvas.pack(side="left", fill="both", expand=True)
+        # Pack the scrollbar FIRST so it claims the right edge
         self.sidebar_scrollbar.pack(side="right", fill="y")
+        
+        # THEN pack the canvas so it takes only the REMAINING space
+        self.sidebar_canvas.pack(side="left", fill="both", expand=True)
+        
+        self.root.after_idle(self._refresh_sidebar_scrollregion)
 
     def _on_sidebar_frame_configure(self, e=None):
         if hasattr(self, "sidebar_canvas"):
@@ -1131,6 +1161,15 @@ class GeckoAI:
         widget.bind("<Button-5>", lambda e: self.sidebar_canvas.yview_scroll(1, "units"), add="+")
         for child in widget.winfo_children():
             self._bind_sidebar_mousewheel(child)
+
+    def _refresh_sidebar_scrollregion(self) -> None:
+        if not hasattr(self, "sidebar_canvas") or not hasattr(self, "sidebar_scroll_frame"):
+            return
+        try:
+            self.sidebar_scroll_frame.update_idletasks()
+            self.sidebar_canvas.configure(scrollregion=self.sidebar_canvas.bbox("all"))
+        except Exception:
+            pass
 
     def get_theme_switch_label(self):
         key = "theme_light" if self.theme == "dark" else "theme_dark"
@@ -1245,14 +1284,33 @@ class GeckoAI:
             anchor="w"
         ).pack(fill="x", pady=(10, 6))
 
+        image_select_row = tk.Frame(content, bg=COLORS["bg_white"])
+        image_select_row.pack(fill="x")
+
         self.combo_image = ttk.Combobox(
-            content,
+            image_select_row,
             values=[],
             state="readonly",
             font=self.font_primary
         )
-        self.combo_image.pack(fill="x")
+        self.combo_image.pack(side="left", fill="x", expand=True)
         self.combo_image.bind("<<ComboboxSelected>>", self.on_image_selected)
+
+        self.create_toolbar_icon_button(
+            image_select_row,
+            text="✖",
+            command=self.remove_current_from_split,
+            tooltip=LANG_MAP[self.lang].get("remove_from_split", "Remove From Split"),
+            bg=COLORS["danger"],
+        ).pack(side="left", padx=(6, 0))
+
+        self.create_toolbar_icon_button(
+            image_select_row,
+            text="↺",
+            command=self.open_restore_removed_dialog,
+            tooltip=LANG_MAP[self.lang].get("restore_from_split", "Restore Deleted Frame"),
+            bg=COLORS["success"],
+        ).pack(side="left", padx=(6, 0))
         
         # Progress row
         progress_frame = tk.Frame(content, bg=COLORS["bg_white"])
@@ -1277,11 +1335,25 @@ class GeckoAI:
             bg=COLORS["bg_white"]
         )
         self.lbl_box_count.pack(side="right")
+
+        counts_detail_frame = tk.Frame(content, bg=COLORS["bg_white"])
+        counts_detail_frame.pack(fill="x", pady=(4, 0))
+
+        self.lbl_class_count = tk.Label(
+            counts_detail_frame,
+            text=f"{LANG_MAP[self.lang]['class_mgmt']}: 0 / 0",
+            font=self.font_primary,
+            fg=COLORS["primary"],
+            bg=COLORS["bg_white"],
+            anchor="e",
+        )
+        self.lbl_class_count.pack(side="right")
+
     
     def create_class_card(self, parent):
         """Create class management card."""
         content = self.create_card(parent, LANG_MAP[self.lang]["class_mgmt"])
-        
+
         # Current class label
         tk.Label(
             content,
@@ -1317,18 +1389,6 @@ class GeckoAI:
             command=self.clear_current_labels
         ).pack(fill="x", pady=(0, 12))
 
-        self.create_secondary_button(
-            content,
-            text=LANG_MAP[self.lang].get("remove_from_split", "Remove From Split"),
-            command=self.remove_current_from_split
-        ).pack(fill="x", pady=(0, 12))
-
-        self.create_secondary_button(
-            content,
-            text=LANG_MAP[self.lang].get("restore_from_split", "Restore Deleted Frame"),
-            command=self.open_restore_removed_dialog
-        ).pack(fill="x", pady=(0, 12))
-
         tk.Checkbutton(
             content,
             text="Show Last Photo Labels (ghost)",
@@ -1341,37 +1401,6 @@ class GeckoAI:
             selectcolor=COLORS["bg_white"],
             anchor="w",
         ).pack(fill="x", pady=(0, 12))
-        
-        # Export format
-        tk.Label(
-            content,
-            text=LANG_MAP[self.lang]["export_format"],
-            font=self.font_primary,
-            fg=COLORS["text_secondary"],
-            bg=COLORS["bg_white"],
-            anchor="w"
-        ).pack(fill="x", pady=(0, 8))
-        
-        ttk.Combobox(
-            content,
-            textvariable=self.var_export_format,
-            values=["YOLO (.txt)", "JSON"],
-            state="readonly",
-            font=self.font_primary
-        ).pack(fill="x")
-
-        self.create_primary_button(
-            content,
-            text=LANG_MAP[self.lang]["export"],
-            command=self.export_all_by_selected_format,
-            bg=COLORS["info"]
-        ).pack(fill="x", pady=(10, 0))
-
-        self.create_secondary_button(
-            content,
-            text="Export Golden Folder",
-            command=self.export_golden_folder,
-        ).pack(fill="x", pady=(8, 0))
     
     def create_ai_card(self, parent):
         """Create AI tools/settings card."""
@@ -1453,12 +1482,6 @@ class GeckoAI:
             text=LANG_MAP[self.lang].get("browse_model", "Browse Model"),
             command=self.browse_detection_model
         ).pack(side="left", fill="x", expand=True, padx=(0, 4))
-
-        self.create_secondary_button(
-            picker_row,
-            text=LANG_MAP[self.lang].get("use_official_yolo26n", "Use Official yolo26m.pt"),
-            command=self.use_official_yolo26n
-        ).pack(side="left", fill="x", expand=True, padx=(4, 0))
         
         # Detection trigger
         self.create_primary_button(
@@ -1535,19 +1558,48 @@ class GeckoAI:
 
         log_wrap = tk.Frame(content, bg=COLORS["bg_white"])
         log_wrap.pack(fill="both", expand=True)
+        log_wrap.grid_rowconfigure(0, weight=1)
+        log_wrap.grid_columnconfigure(0, weight=1)
         self.txt_train_log = tk.Text(
             log_wrap,
             height=8,
-            wrap="word",
+            wrap="none",
             font=self.font_mono,
             bg=COLORS["bg_light"],
             fg=COLORS["text_primary"],
             relief="flat",
         )
-        self.txt_train_log.pack(side="left", fill="both", expand=True)
-        sb_log = ttk.Scrollbar(log_wrap, orient="vertical", command=self.txt_train_log.yview)
-        sb_log.pack(side="right", fill="y")
-        self.txt_train_log.configure(yscrollcommand=sb_log.set)
+        self.txt_train_log.grid(row=0, column=0, sticky="nsew")
+        sb_log_y = tk.Scrollbar(
+            log_wrap,
+            orient="vertical",
+            command=self.txt_train_log.yview,
+            width=12,
+            bg=COLORS["bg_medium"],
+            troughcolor=COLORS["bg_dark"],
+            activebackground=COLORS["primary"],
+            highlightthickness=0,
+            relief="flat",
+            borderwidth=0,
+        )
+        sb_log_y.grid(row=0, column=1, sticky="ns")
+        sb_log_x = tk.Scrollbar(
+            log_wrap,
+            orient="horizontal",
+            command=self.txt_train_log.xview,
+            width=12,
+            bg=COLORS["bg_medium"],
+            troughcolor=COLORS["bg_dark"],
+            activebackground=COLORS["primary"],
+            highlightthickness=0,
+            relief="flat",
+            borderwidth=0,
+        )
+        sb_log_x.grid(row=1, column=0, sticky="ew")
+        self.txt_train_log.configure(
+            yscrollcommand=sb_log_y.set,
+            xscrollcommand=sb_log_x.set,
+        )
     
     def create_shortcut_card(self, parent):
         """Render shortcut hint list."""
@@ -1556,7 +1608,6 @@ class GeckoAI:
         shortcuts = [
             ("F", LANG_MAP[self.lang]["next"]),
             ("D", LANG_MAP[self.lang]["prev"]),
-            ("A", LANG_MAP[self.lang]["autolabel"]),
             ("Q / E", "Rotate selected box"),
             ("Ctrl+Z", LANG_MAP[self.lang]["undo"]),
             ("Ctrl+Y", LANG_MAP[self.lang]["redo"]),
@@ -1716,6 +1767,12 @@ class GeckoAI:
         self.lbl_box_count.config(
             text=f"{LANG_MAP[self.lang]['boxes']}: {len(self.rects)}"
         )
+        if hasattr(self, "lbl_class_count"):
+            frame_class_count = len({int(r[4]) for r in self.rects if len(r) >= 5})
+            total_class_count = len(self.class_names)
+            self.lbl_class_count.config(
+                text=f"{LANG_MAP[self.lang]['class_mgmt']}: {frame_class_count} / {total_class_count}"
+            )
 
     def refresh_image_dropdown(self):
         if not hasattr(self, "combo_image"):
@@ -4169,7 +4226,7 @@ class GeckoAI:
 
         overlay = self._open_fullpage_overlay()
         card = tk.Frame(overlay, bg=COLORS["bg_white"], bd=0, highlightthickness=0)
-        card.place(relx=0.5, rely=0.5, anchor="center", width=540, height=390)
+        card.place(relx=0.5, rely=0.5, anchor="center", width=540, height=320)
 
         tk.Label(
             card,
@@ -4180,46 +4237,46 @@ class GeckoAI:
             anchor="center",
         ).pack(fill="x", padx=20, pady=(24, 18))
 
-        def choose_images() -> None:
-            self._close_startup_dialog()
-            self.root.after(1, lambda: self.startup_choose_images_folder("images"))
+        source_choices: list[tuple[str, str]] = [
+            (LANG_MAP[self.lang]["startup_images"], "images"),
+            (LANG_MAP[self.lang]["startup_yolo"], "yolo"),
+            (LANG_MAP[self.lang]["startup_rfdetr"], "rfdetr"),
+        ]
+        source_label_to_mode = {label: mode for label, mode in source_choices}
+        startup_source_var = tk.StringVar(value=LANG_MAP[self.lang]["startup_images"])
 
-        def choose_yolo() -> None:
-            self._close_startup_dialog()
-            self.det_model_mode.set("Custom YOLO (v5/v7/v8/v9/v11/v26)")
-            self.root.after(1, lambda: self.startup_choose_images_folder("yolo"))
+        tk.Label(
+            card,
+            text=LANG_MAP[self.lang]["startup_choose_source"],
+            bg=COLORS["bg_white"],
+            fg=COLORS["text_secondary"],
+            font=self.font_primary,
+            anchor="w",
+        ).pack(fill="x", padx=28, pady=(0, 6))
 
-        def choose_rfdetr() -> None:
+        ttk.Combobox(
+            card,
+            textvariable=startup_source_var,
+            values=[label for label, _mode in source_choices],
+            state="readonly",
+            font=self.font_primary,
+        ).pack(fill="x", padx=28, pady=(0, 14))
+
+        def choose_startup_source() -> None:
+            mode_value = source_label_to_mode.get(startup_source_var.get(), "images")
             self._close_startup_dialog()
-            self.det_model_mode.set("Custom RF-DETR")
-            self.root.after(1, lambda: self.startup_choose_images_folder("rfdetr"))
+            if mode_value == "yolo":
+                self.det_model_mode.set("Custom YOLO (v5/v7/v8/v9/v11/v26)")
+            elif mode_value == "rfdetr":
+                self.det_model_mode.set("Custom RF-DETR")
+            self.root.after(1, lambda: self.startup_choose_images_folder(mode_value))
 
         self.create_primary_button(
             card,
-            text=LANG_MAP[self.lang]["startup_images"],
-            command=choose_images,
+            text="Start",
+            command=choose_startup_source,
             bg=COLORS["primary"],
-        ).pack(fill="x", padx=28, pady=(0, 10))
-
-        self.create_primary_button(
-            card,
-            text=LANG_MAP[self.lang]["startup_yolo"],
-            command=choose_yolo,
-            bg=COLORS["success"],
-        ).pack(fill="x", padx=28, pady=(0, 10))
-
-        self.create_primary_button(
-            card,
-            text=LANG_MAP[self.lang]["startup_rfdetr"],
-            command=choose_rfdetr,
-            bg=COLORS["warning"],
-        ).pack(fill="x", padx=28, pady=(0, 10))
-
-        self.create_secondary_button(
-            card,
-            text=LANG_MAP[self.lang]["startup_skip"],
-            command=self._close_startup_dialog,
-        ).pack(fill="x", padx=28, pady=(0, 20))
+        ).pack(fill="x", padx=28, pady=(0, 16))
 
         self.create_secondary_button(
             card,
@@ -7136,8 +7193,6 @@ class GeckoAI:
         self.root.bind("<Key-F>", lambda e: self.save_and_next())
         self.root.bind("<Key-d>", lambda e: self.prev_img())
         self.root.bind("<Key-D>", lambda e: self.prev_img())
-        self.root.bind("<Key-a>", lambda e: self.autolabel_red())
-        self.root.bind("<Key-A>", lambda e: self.autolabel_red())
         self.root.bind("<Key-q>", lambda e: self.rotate_selected_boxes(-5.0))
         self.root.bind("<Key-Q>", lambda e: self.rotate_selected_boxes(-15.0))
         self.root.bind("<Key-e>", lambda e: self.rotate_selected_boxes(5.0))

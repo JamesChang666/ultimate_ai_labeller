@@ -14,12 +14,12 @@ Desktop image annotation tool for object detection datasets (Tkinter + Ultralyti
 - Nested/overlapping box picking prefers inner (smaller) box for easier adjustment
 - Undo/redo history (`Ctrl+Z`, `Ctrl+Y`)
 - Image navigation (`F` next/save, `D` previous)
-- Auto red-region proposal (`A`)
 - YOLO detection from UI (`Run Detection`)
 - Startup source selection:
-  - Open Images Folder
+  - Dropdown chooser (default: `Open Images Folder`)
   - Open YOLO Dataset
   - Open RF-DETR Dataset
+- Logo/app-name click returns to source/main page
 - Detection model management:
   - Official model mode (`yolo26m.pt` path by default)
   - Import custom models (`.pt`, `.onnx`) via `Browse Model`
@@ -38,13 +38,19 @@ Desktop image annotation tool for object detection datasets (Tkinter + Ultralyti
   - Deleting a class reindexes following class IDs automatically
 - Auto-detect and propagate options (3 propagate modes: no-label-only / always / selected labels only)
 - Scrollable right settings panel
-- Remove/restore bad frames from split
+- Remove/restore bad frames from split (icon buttons beside image dropdown)
+- File info counters: boxes, and classes in current frame / total classes
 - Image dropdown jump
 - Session resume (last project/split/image/model settings)
 - English/Chinese UI switch and light/dark theme
-- Export all annotations by format:
-  - `YOLO (.txt)` export to `images/train` + `labels/train` structure
-  - `JSON` full dataset export (per-image annotation json)
+- Export controls in top toolbar (next to undo/redo):
+  - Format dropdown (`YOLO (.txt)` / `JSON`)
+  - `Export`
+  - `Golden` (export golden folder)
+- Previous-label ghost workflow:
+  - Optional ghost overlay of last image labels (dotted)
+  - Right-click on a ghost box to paste only that clicked box
+- Right-click drag to draw new box directly
 
 ## Repositories
 
@@ -175,13 +181,13 @@ uvicorn app:app --host 127.0.0.1 --port 8000 --reload
 
 - `F`: save and next image
 - `D`: previous image
-- `A`: auto red detection
 - `Q/E`: rotate selected box (-5 deg / +5 deg)
 - `Shift+Q/E`: rotate selected box faster (-15 deg / +15 deg)
 - `Ctrl+Z`: undo
 - `Ctrl+Y`: redo
 - `Ctrl+A`: select all boxes in current image
 - `Ctrl+Left Drag`: marquee multi-select boxes
+- `Right Drag`: draw new box
 - `Delete`: delete selected box
 
 ## Notes
