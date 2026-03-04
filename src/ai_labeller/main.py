@@ -5,6 +5,7 @@ import csv
 import datetime
 import gc
 import glob
+import hashlib
 import json
 import math
 import os
@@ -55,6 +56,12 @@ try:
     HAS_PADDLE_OCR = True
 except ImportError:
     HAS_PADDLE_OCR = False
+
+try:
+    import easyocr
+    HAS_EASY_OCR = True
+except ImportError:
+    HAS_EASY_OCR = False
 
 try:
     import torch
@@ -488,9 +495,21 @@ class GeckoAI:
         self.detect_golden_iou_var = tk.DoubleVar(value=0.50)
         self.detect_golden_class_var = tk.StringVar(value="")
         self._detect_golden_sample: dict[str, Any] | None = None
+        self._detect_bg_cut_bundle: Any = None
+        self._detect_last_cut_piece_count: int = 0
+        self._detect_last_piece_results: list[Any] = []
+        self._detect_cut_piece_temp_root: str | None = None
+        self._detect_cut_piece_last_dir: str | None = None
+        self._detect_cut_piece_seq: int = 0
+        self._detect_seen_cut_piece_hashes: set[str] = set()
+        self._detect_last_piece_paths: list[str] = []
+        self._detect_piece_index: int = 0
+        self._detect_image_result_cache: dict[str, dict[str, Any]] = {}
+        self._detect_report_logged_keys: set[str] = set()
         self._detect_last_ocr_id: str = ""
         self._detect_last_ocr_sub_id: str = ""
         self._detect_ocr_warning_shown = False
+        self._easy_ocr_engine: Any = None
         self._paddle_ocr_engine: Any = None
         self._golden_capture_active = False
         self._golden_capture_temp_root: str | None = None
@@ -2449,9 +2468,11 @@ class GeckoAI:
                 sub_id_cls_name = self._detect_golden_sample.get("sub_id_class_name")
                 sub_id_cls_id = self._detect_golden_sample.get("sub_id_class_id")
                 sub_id_text = str(sub_id_cls_name or (f"id:{sub_id_cls_id}" if sub_id_cls_id is not None else "None"))
+                bg_cut_root = str(self._detect_golden_sample.get("background_cut_root") or "").strip()
+                bg_cut_text = f", background_cut=ON ({os.path.basename(bg_cut_root)})" if bg_cut_root else ", background_cut=OFF"
                 golden_summary = (
                     f"label={lbl_name}, targets={len(targets)}, classes={cls_text}, "
-                    f"id_class={id_text}, sub_id_class={sub_id_text}"
+                    f"id_class={id_text}, sub_id_class={sub_id_text}{bg_cut_text}"
                 )
             tk.Label(
                 card,
@@ -2654,6 +2675,8 @@ class GeckoAI:
             return
         first_name = targets[0].get("class_name")
         self.detect_golden_class_var.set(str(first_name or targets[0].get("class_id")))
+        bg_cut_bundle_meta = self._load_detect_background_cut_bundle(golden_dir)
+        self._detect_bg_cut_bundle = bg_cut_bundle_meta.get("bundle") if bg_cut_bundle_meta else None
 
         self._detect_golden_sample = {
             "label_path": os.path.abspath(label_path),
@@ -2664,9 +2687,37 @@ class GeckoAI:
             "sub_id_class_id": id_cfg.get("sub_id_class_id") if id_cfg else None,
             "sub_id_class_name": id_cfg.get("sub_id_class_name") if id_cfg else None,
             "id_config_path": id_cfg.get("id_config_path") if id_cfg else None,
+            "background_cut_root": bg_cut_bundle_meta.get("root") if bg_cut_bundle_meta else None,
+            "background_cut_rules": bg_cut_bundle_meta.get("rules_path") if bg_cut_bundle_meta else None,
+            "background_cut_template": bg_cut_bundle_meta.get("template_path") if bg_cut_bundle_meta else None,
         }
         self.detect_run_mode_var.set("golden")
         self.show_detect_source_page()
+
+    def _load_detect_background_cut_bundle(self, golden_dir: str) -> dict[str, Any] | None:
+        if not HAS_CV2:
+            return None
+        try:
+            from ai_labeller.cut_background_detect import load_background_cut_bundle
+
+            preferred_root = os.path.join(golden_dir, "background_cut_golden")
+            search_roots: list[str] = []
+            if os.path.isdir(preferred_root):
+                search_roots.append(preferred_root)
+            search_roots.append(golden_dir)
+            for root in search_roots:
+                bundle = load_background_cut_bundle(root)
+                if bundle is None:
+                    continue
+                return {
+                    "bundle": bundle,
+                    "root": bundle.root_dir,
+                    "rules_path": bundle.rules_path,
+                    "template_path": bundle.template_path,
+                }
+        except Exception:
+            self.logger.exception("Failed to load background-cut golden bundle from: %s", golden_dir)
+        return None
 
     def _create_detect_golden_from_label_mode(self) -> None:
         img_path = filedialog.askopenfilename(
@@ -2790,6 +2841,7 @@ class GeckoAI:
                 sub_id_class_id=sub_id_class_id,
                 sub_id_class_name=sub_id_class_name,
             )
+        self._detect_bg_cut_bundle = None
         self._detect_golden_sample = {
             "label_path": lbl_dst,
             "targets": targets,
@@ -2800,6 +2852,9 @@ class GeckoAI:
             "sub_id_class_id": sub_id_class_id,
             "sub_id_class_name": sub_id_class_name,
             "id_config_path": id_cfg_path,
+            "background_cut_root": None,
+            "background_cut_rules": None,
+            "background_cut_template": None,
         }
         self.detect_run_mode_var.set("golden")
         self._cleanup_golden_capture_temp()
@@ -3366,10 +3421,10 @@ class GeckoAI:
                 or self._detect_golden_sample.get("sub_id_class_id") is not None
                 or bool(str(self._detect_golden_sample.get("sub_id_class_name", "")).strip())
             )
-            if id_enabled and not HAS_PADDLE_OCR:
+            if id_enabled and not (HAS_EASY_OCR or HAS_PADDLE_OCR):
                 messagebox.showwarning(
                     "Detect Mode",
-                    "ID/Sub ID OCR is configured, but paddleocr is not installed. Detection will run without OCR IDs.",
+                    "ID/Sub ID OCR is configured, but EasyOCR/PaddleOCR is not installed. Detection will run without OCR IDs.",
                     parent=self.root,
                 )
         self.start_detect_mode(
@@ -3621,6 +3676,8 @@ class GeckoAI:
 
     def _init_detect_report_logger(self, source_kind: str, source_value: Any, output_dir: str | None = None) -> None:
         self._close_detect_report_logger()
+        self._detect_image_result_cache = {}
+        self._detect_report_logged_keys = set()
         try:
             if output_dir:
                 base_dir = os.path.abspath(output_dir)
@@ -3796,6 +3853,7 @@ class GeckoAI:
 
     def _evaluate_golden_match(self, result0: Any) -> tuple[str | None, str]:
         if self.detect_run_mode_var.get().strip().lower() != "golden" or self._detect_golden_sample is None:
+            self._detect_last_cut_piece_count = 0
             self._detect_last_ocr_id = ""
             self._detect_last_ocr_sub_id = ""
             return None, ""
@@ -3883,6 +3941,8 @@ class GeckoAI:
         if matched_targets == total_targets:
             avg_iou = sum(best_ious) / max(1, len(best_ious))
             msg = f"{matched_targets}/{total_targets} matched, avg IoU={avg_iou:.3f}"
+            if self._should_use_background_cut_detection():
+                msg = f"{msg}, cut_pieces={int(getattr(self, '_detect_last_cut_piece_count', 0))}"
             if ocr_id:
                 msg = f"{msg}, id={ocr_id}"
             if ocr_sub_id:
@@ -3890,11 +3950,27 @@ class GeckoAI:
             return "PASS", msg
         avg_iou = sum(best_ious) / max(1, len(best_ious))
         msg = f"{matched_targets}/{total_targets} matched, avg IoU={avg_iou:.3f}"
+        if self._should_use_background_cut_detection():
+            msg = f"{msg}, cut_pieces={int(getattr(self, '_detect_last_cut_piece_count', 0))}"
         if ocr_id:
             msg = f"{msg}, id={ocr_id}"
         if ocr_sub_id:
             msg = f"{msg}, sub_id={ocr_sub_id}"
         return "FAIL", msg
+
+    def _get_easy_ocr_engine(self) -> Any:
+        if not HAS_EASY_OCR:
+            return None
+        if self._easy_ocr_engine is not None:
+            return self._easy_ocr_engine
+        try:
+            self._easy_ocr_engine = easyocr.Reader(["en"], gpu=False, verbose=False)
+        except TypeError:
+            self._easy_ocr_engine = easyocr.Reader(["en"], gpu=False)
+        except Exception:
+            self.logger.exception("Failed to initialize EasyOCR engine")
+            self._easy_ocr_engine = None
+        return self._easy_ocr_engine
 
     def _get_paddle_ocr_engine(self) -> Any:
         if not HAS_PADDLE_OCR:
@@ -3915,6 +3991,15 @@ class GeckoAI:
             self._paddle_ocr_engine = None
         return self._paddle_ocr_engine
 
+    def _get_preferred_ocr_engine(self) -> tuple[str | None, Any]:
+        easy_engine = self._get_easy_ocr_engine()
+        if easy_engine is not None:
+            return "easyocr", easy_engine
+        paddle_engine = self._get_paddle_ocr_engine()
+        if paddle_engine is not None:
+            return "paddleocr", paddle_engine
+        return None, None
+
     def _extract_ocr_text_from_result(
         self,
         result0: Any,
@@ -3925,12 +4010,12 @@ class GeckoAI:
         if tgt_id is None and not tgt_name:
             return ""
 
-        if not HAS_PADDLE_OCR:
+        if not HAS_EASY_OCR and not HAS_PADDLE_OCR:
             if not self._detect_ocr_warning_shown:
                 self._detect_ocr_warning_shown = True
-                self.logger.warning("OCR ID/Sub ID enabled but paddleocr is not installed; skipping OCR.")
+                self.logger.warning("OCR ID/Sub ID enabled but neither easyocr nor paddleocr is installed; skipping OCR.")
             return ""
-        ocr_engine = self._get_paddle_ocr_engine()
+        ocr_backend, ocr_engine = self._get_preferred_ocr_engine()
         if ocr_engine is None:
             return ""
 
@@ -3981,30 +4066,76 @@ class GeckoAI:
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if len(crop.shape) == 3 else crop
         gray = cv2.GaussianBlur(gray, (3, 3), 0)
         _, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        try:
-            ocr_input = cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
-            raw = ocr_engine.ocr(ocr_input, cls=False)
-        except Exception:
-            return ""
-        texts: list[str] = []
 
-        def collect_texts(node: Any) -> None:
-            if isinstance(node, (list, tuple)):
-                if (
-                    len(node) >= 2
-                    and isinstance(node[1], (list, tuple))
-                    and len(node[1]) >= 1
-                    and isinstance(node[1][0], str)
-                ):
-                    texts.append(node[1][0])
-                    return
-                for item in node:
-                    collect_texts(item)
+        def run_ocr_and_score(gray_img: np.ndarray) -> tuple[str, float]:
+            try:
+                ocr_input = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2BGR)
+                if ocr_backend == "easyocr":
+                    raw = ocr_engine.readtext(ocr_input, detail=1, paragraph=False)
+                else:
+                    raw = ocr_engine.ocr(ocr_input, cls=False)
+            except Exception:
+                return "", -1.0
 
-        collect_texts(raw)
-        text = " ".join(t for t in texts if t).strip()
-        cleaned = re.sub(r"[^0-9A-Za-z_-]+", "", text)
-        return cleaned[:128]
+            pairs: list[tuple[str, float]] = []
+
+            def collect_pairs(node: Any) -> None:
+                if isinstance(node, (list, tuple)):
+                    if (
+                        ocr_backend == "easyocr"
+                        and len(node) >= 3
+                        and isinstance(node[1], str)
+                    ):
+                        text_val = str(node[1] or "").strip()
+                        conf_val = float(node[2]) if node[2] is not None else 0.0
+                        pairs.append((text_val, conf_val))
+                        return
+                    if (
+                        len(node) >= 2
+                        and isinstance(node[1], (list, tuple))
+                        and len(node[1]) >= 1
+                        and isinstance(node[1][0], str)
+                    ):
+                        text_val = str(node[1][0] or "").strip()
+                        conf_val = float(node[1][1]) if len(node[1]) >= 2 else 0.0
+                        pairs.append((text_val, conf_val))
+                        return
+                    for item in node:
+                        collect_pairs(item)
+
+            collect_pairs(raw)
+            # Keep only one best token from the ID area instead of merging all OCR text.
+            best_token = ""
+            best_token_score = -1.0
+            for text_raw, conf_raw in pairs:
+                cleaned = re.sub(r"[^0-9A-Za-z_-]+", "", str(text_raw or "")).strip()[:128]
+                if not cleaned:
+                    continue
+                has_digit = any(ch.isdigit() for ch in cleaned)
+                token_score = float(conf_raw) * 100.0 + len(cleaned) + (20.0 if has_digit else 0.0)
+                if token_score > best_token_score:
+                    best_token_score = token_score
+                    best_token = cleaned
+            if not best_token:
+                return "", -1.0
+            avg_conf = (sum(c for _t, c in pairs) / len(pairs)) if pairs else 0.0
+            score = avg_conf * 100.0 + min(len(best_token), 128)
+            return best_token, score
+
+        candidates = [
+            bw,
+            cv2.rotate(bw, cv2.ROTATE_90_CLOCKWISE),
+            cv2.rotate(bw, cv2.ROTATE_180),
+            cv2.rotate(bw, cv2.ROTATE_90_COUNTERCLOCKWISE),
+        ]
+        best_text = ""
+        best_score = -1.0
+        for cand in candidates:
+            text, score = run_ocr_and_score(cand)
+            if score > best_score:
+                best_score = score
+                best_text = text
+        return best_text
 
     def _extract_ocr_id_from_result(self, result0: Any) -> str:
         sample = self._detect_golden_sample or {}
@@ -4050,6 +4181,14 @@ class GeckoAI:
         except Exception:
             self.logger.exception("Failed to append detect report row")
 
+    def _append_detect_report_row_once(self, image_name: str, result0: Any, status: str | None, details: str) -> None:
+        csv_path = self._detect_report_csv_path or ""
+        key = f"{csv_path}|{image_name}"
+        if key in self._detect_report_logged_keys:
+            return
+        self._append_detect_report_row(image_name, result0, status, details)
+        self._detect_report_logged_keys.add(key)
+
     def _exit_detect_workspace_to_source(self) -> None:
         self._stop_detect_stream()
         self.show_detect_source_page()
@@ -4086,46 +4225,305 @@ class GeckoAI:
         self._show_detect_plot(plotted)
         self._detect_after_id = self.root.after(15, self._detect_tick_video)
 
-    def _run_detect_inference(self, source: Any) -> Any:
+    def _should_use_background_cut_detection(self) -> bool:
+        return (
+            self.detect_run_mode_var.get().strip().lower() == "golden"
+            and self._detect_bg_cut_bundle is not None
+            and HAS_CV2
+        )
+
+    def _cleanup_detect_cut_piece_temp(self, remove_root: bool = False) -> None:
+        last_dir = self._detect_cut_piece_last_dir
+        if last_dir and os.path.isdir(last_dir):
+            try:
+                shutil.rmtree(last_dir, ignore_errors=True)
+            except Exception:
+                self.logger.exception("Failed to cleanup cut-piece temp dir: %s", last_dir)
+        self._detect_cut_piece_last_dir = None
+        self._detect_last_piece_paths = []
+        self._detect_piece_index = 0
+        if remove_root and self._detect_cut_piece_temp_root and os.path.isdir(self._detect_cut_piece_temp_root):
+            try:
+                shutil.rmtree(self._detect_cut_piece_temp_root, ignore_errors=True)
+            except Exception:
+                self.logger.exception("Failed to cleanup cut-piece temp root: %s", self._detect_cut_piece_temp_root)
+            self._detect_cut_piece_temp_root = None
+            self._detect_cut_piece_seq = 0
+            self._detect_seen_cut_piece_hashes = set()
+
+    def _ensure_detect_cut_piece_temp_root(self) -> str:
+        if self._detect_cut_piece_temp_root and os.path.isdir(self._detect_cut_piece_temp_root):
+            return self._detect_cut_piece_temp_root
+        self._detect_cut_piece_temp_root = tempfile.mkdtemp(prefix="detect_cut_pieces_")
+        self._detect_cut_piece_temp_root = self._detect_cut_piece_temp_root.replace("\\", "/")
+        self._detect_cut_piece_seq = 0
+        return self._detect_cut_piece_temp_root
+
+    def _write_cut_pieces_to_temp_folder(self, pieces: list[np.ndarray]) -> str:
+        root = self._ensure_detect_cut_piece_temp_root()
+        self._cleanup_detect_cut_piece_temp(remove_root=False)
+        self._detect_cut_piece_seq += 1
+        run_dir = os.path.join(root, f"run_{self._detect_cut_piece_seq:06d}").replace("\\", "/")
+        os.makedirs(run_dir, exist_ok=True)
+        safe_pieces = [p for p in pieces if p is not None and getattr(p, "size", 0) > 0]
+        if not safe_pieces:
+            safe_pieces = [np.zeros((64, 64, 3), dtype=np.uint8)]
+        piece_paths: list[str] = []
+        for idx, piece in enumerate(safe_pieces, start=1):
+            out_path = os.path.join(run_dir, f"piece_{idx:04d}.png").replace("\\", "/")
+            cv2.imwrite(out_path, piece)
+            piece_paths.append(out_path)
+        self._detect_cut_piece_last_dir = run_dir
+        self._detect_last_piece_paths = piece_paths
+        self._detect_piece_index = 0
+        return run_dir
+
+    def _cut_piece_signature(self, piece: np.ndarray) -> str:
+        ok, encoded = cv2.imencode(".png", piece)
+        if not ok:
+            return ""
+        return hashlib.sha1(encoded.tobytes()).hexdigest()
+
+    def _filter_unseen_cut_pieces(self, pieces: list[np.ndarray]) -> list[np.ndarray]:
+        out: list[np.ndarray] = []
+        seen = self._detect_seen_cut_piece_hashes
+        for piece in pieces:
+            if piece is None or getattr(piece, "size", 0) == 0:
+                continue
+            sig = self._cut_piece_signature(piece)
+            if not sig:
+                out.append(piece)
+                continue
+            if sig in seen:
+                continue
+            seen.add(sig)
+            out.append(piece)
+        return out
+
+    def _prepare_background_cut_detect_source(self, source: Any) -> Any:
+        if not self._should_use_background_cut_detection():
+            self._detect_last_cut_piece_count = 0
+            self._detect_last_piece_results = []
+            self._detect_last_piece_paths = []
+            self._detect_piece_index = 0
+            self._cleanup_detect_cut_piece_temp(remove_root=False)
+            return source
         try:
-            return self.yolo_model(
-                source,
+            from ai_labeller.cut_background_detect import extract_cut_pieces_from_bgr
+
+            image_bgr = None
+            if isinstance(source, np.ndarray):
+                image_bgr = source
+            elif isinstance(source, str):
+                image_bgr = cv2.imread(source)
+            if image_bgr is None or image_bgr.size == 0:
+                self._detect_last_cut_piece_count = 0
+                return self._write_cut_pieces_to_temp_folder([])
+            pieces = extract_cut_pieces_from_bgr(image_bgr, self._detect_bg_cut_bundle)
+            new_pieces = self._filter_unseen_cut_pieces(pieces)
+            self._detect_last_cut_piece_count = len(new_pieces)
+            return self._write_cut_pieces_to_temp_folder(new_pieces)
+        except Exception:
+            self.logger.exception("Background-cut preprocessing failed; falling back to raw source.")
+            self._detect_last_cut_piece_count = 0
+            self._detect_last_piece_results = []
+            self._detect_last_piece_paths = []
+            self._detect_piece_index = 0
+            self._cleanup_detect_cut_piece_temp(remove_root=False)
+            return source
+
+    def _select_primary_result_index(self, results: list[Any]) -> int:
+        if not results:
+            return 0
+        best_idx = 0
+        best_score = -1.0
+        for idx, result in enumerate(results):
+            boxes = getattr(result, "boxes", None)
+            cls_vals = getattr(boxes, "cls", None) if boxes is not None else None
+            conf_vals = getattr(boxes, "conf", None) if boxes is not None else None
+            box_count = len(cls_vals.tolist()) if cls_vals is not None else 0
+            conf_mean = 0.0
+            if conf_vals is not None:
+                conf_list = conf_vals.tolist()
+                conf_mean = (sum(float(c) for c in conf_list) / len(conf_list)) if conf_list else 0.0
+            score = float(box_count) * 1000.0 + conf_mean
+            if score > best_score:
+                best_score = score
+                best_idx = idx
+        return best_idx
+
+    def _run_detect_inference(self, source: Any) -> Any:
+        prepared_source = self._prepare_background_cut_detect_source(source)
+        try:
+            results = self.yolo_model(
+                prepared_source,
                 verbose=False,
                 device=self._detect_preferred_device,
                 conf=float(self._detect_conf_threshold),
             )
+            if self._should_use_background_cut_detection():
+                self._detect_last_piece_results = list(results)
+                best_idx = self._select_primary_result_index(self._detect_last_piece_results)
+                if 0 <= best_idx < len(self._detect_last_piece_results):
+                    if best_idx != 0:
+                        ordered = [self._detect_last_piece_results[best_idx]] + [
+                            r for i, r in enumerate(self._detect_last_piece_results) if i != best_idx
+                        ]
+                        self._detect_last_piece_results = ordered
+                    return self._detect_last_piece_results
+            else:
+                self._detect_last_piece_results = []
+            return results
         except RuntimeError as exc:
             if self._detect_preferred_device != "cpu" and self._is_cuda_kernel_compat_error(exc):
                 self._force_cpu_detection = True
                 self._detect_preferred_device = "cpu"
-                return self.yolo_model(
-                    source,
+                results = self.yolo_model(
+                    prepared_source,
                     verbose=False,
                     device=self._detect_preferred_device,
                     conf=float(self._detect_conf_threshold),
                 )
+                if self._should_use_background_cut_detection():
+                    self._detect_last_piece_results = list(results)
+                    best_idx = self._select_primary_result_index(self._detect_last_piece_results)
+                    if 0 <= best_idx < len(self._detect_last_piece_results):
+                        if best_idx != 0:
+                            ordered = [self._detect_last_piece_results[best_idx]] + [
+                                r for i, r in enumerate(self._detect_last_piece_results) if i != best_idx
+                            ]
+                            self._detect_last_piece_results = ordered
+                        return self._detect_last_piece_results
+                else:
+                    self._detect_last_piece_results = []
+                return results
             raise
+
+    def _render_detect_current_piece_result(self, source_path: str) -> None:
+        if not self._detect_last_piece_results:
+            return
+        total = len(self._detect_last_piece_results)
+        self._detect_piece_index = max(0, min(self._detect_piece_index, total - 1))
+        idx = self._detect_piece_index
+        result0 = self._detect_last_piece_results[idx]
+        piece_name = (
+            os.path.basename(self._detect_last_piece_paths[idx])
+            if idx < len(self._detect_last_piece_paths)
+            else f"piece_{idx + 1:04d}.png"
+        )
+        base_status = f"{os.path.basename(source_path)} ({self._detect_image_index + 1}/{len(self._detect_image_paths)})"
+        self._detect_status_var.set(
+            f"{base_status} | piece {idx + 1}/{total}: {piece_name} | new cut pieces: {self._detect_last_cut_piece_count}"
+        )
+        plotted = result0.plot(line_width=1)
+        cache_key = os.path.abspath(source_path)
+        cached = self._detect_image_result_cache.get(cache_key) or {}
+        entries = cached.get("entries") or []
+        if idx < len(entries):
+            entry = entries[idx]
+            self._detect_last_ocr_id = str(entry.get("ocr_id", "") or "")
+            self._detect_last_ocr_sub_id = str(entry.get("ocr_sub_id", "") or "")
+            verdict = entry.get("status")
+            detail = str(entry.get("detail", "") or "")
+        else:
+            verdict, detail = self._evaluate_golden_match(result0)
+        self._set_detect_verdict(verdict, detail)
+        self._update_detect_class_panel(result0)
+        self._show_detect_plot(plotted)
 
     def _detect_render_image_index(self) -> None:
         if not self._detect_image_paths:
             return
         self._detect_image_index = max(0, min(self._detect_image_index, len(self._detect_image_paths) - 1))
         img_path = self._detect_image_paths[self._detect_image_index]
-        self._detect_status_var.set(
-            f"{os.path.basename(img_path)} ({self._detect_image_index + 1}/{len(self._detect_image_paths)})"
-        )
+        cache_key = os.path.abspath(img_path)
+        base_status = f"{os.path.basename(img_path)} ({self._detect_image_index + 1}/{len(self._detect_image_paths)})"
+        self._detect_status_var.set(base_status)
+        cached = self._detect_image_result_cache.get(cache_key)
+        if cached:
+            self._detect_last_cut_piece_count = int(cached.get("cut_piece_count", 0))
+            self._detect_last_piece_results = list(cached.get("results") or [])
+            self._detect_last_piece_paths = list(cached.get("piece_paths") or [])
+            self._detect_piece_index = int(cached.get("piece_index", 0))
+            if self._should_use_background_cut_detection() and self._detect_last_piece_results:
+                self._render_detect_current_piece_result(img_path)
+                return
+            result0 = self._detect_last_piece_results[0] if self._detect_last_piece_results else None
+            if result0 is not None:
+                entries = cached.get("entries") or []
+                if entries:
+                    self._detect_last_ocr_id = str(entries[0].get("ocr_id", "") or "")
+                    self._detect_last_ocr_sub_id = str(entries[0].get("ocr_sub_id", "") or "")
+                    verdict = entries[0].get("status")
+                    detail = str(entries[0].get("detail", "") or "")
+                else:
+                    verdict, detail = self._evaluate_golden_match(result0)
+                plotted = result0.plot(line_width=1)
+                self._set_detect_verdict(verdict, detail)
+                self._update_detect_class_panel(result0)
+                self._show_detect_plot(plotted)
+                return
         try:
             results = self._run_detect_inference(img_path)
         except Exception as exc:
             self.logger.exception("Detect image failed")
             messagebox.showerror("Detect Mode Error", str(exc), parent=self.root)
             return
+        if self._should_use_background_cut_detection() and self._detect_last_piece_results:
+            entries: list[dict[str, Any]] = []
+            for i, piece_result in enumerate(self._detect_last_piece_results):
+                piece_name = (
+                    os.path.basename(self._detect_last_piece_paths[i])
+                    if i < len(self._detect_last_piece_paths)
+                    else f"piece_{i + 1:04d}.png"
+                )
+                verdict_i, detail_i = self._evaluate_golden_match(piece_result)
+                entries.append(
+                    {
+                        "status": verdict_i,
+                        "detail": detail_i,
+                        "ocr_id": self._detect_last_ocr_id,
+                        "ocr_sub_id": self._detect_last_ocr_sub_id,
+                        "image_name": f"{os.path.basename(img_path)}::{piece_name}",
+                    }
+                )
+                self._append_detect_report_row_once(
+                    f"{os.path.basename(img_path)}::{piece_name}",
+                    piece_result,
+                    verdict_i,
+                    detail_i,
+                )
+            self._detect_image_result_cache[cache_key] = {
+                "results": list(self._detect_last_piece_results),
+                "piece_paths": list(self._detect_last_piece_paths),
+                "entries": entries,
+                "cut_piece_count": int(self._detect_last_cut_piece_count),
+                "piece_index": 0,
+            }
+            self._detect_piece_index = 0
+            self._render_detect_current_piece_result(img_path)
+            return
         plotted = results[0].plot(line_width=1)
         verdict, detail = self._evaluate_golden_match(results[0])
         self._set_detect_verdict(verdict, detail)
-        self._append_detect_report_row(os.path.basename(img_path), results[0], verdict, detail)
+        self._append_detect_report_row_once(os.path.basename(img_path), results[0], verdict, detail)
         self._update_detect_class_panel(results[0])
         self._show_detect_plot(plotted)
+        self._detect_image_result_cache[cache_key] = {
+            "results": [results[0]],
+            "piece_paths": [],
+            "entries": [
+                {
+                    "status": verdict,
+                    "detail": detail,
+                    "ocr_id": self._detect_last_ocr_id,
+                    "ocr_sub_id": self._detect_last_ocr_sub_id,
+                    "image_name": os.path.basename(img_path),
+                }
+            ],
+            "cut_piece_count": 0,
+            "piece_index": 0,
+        }
 
     def _detect_class_counts(self, result0: Any) -> dict[str, int]:
         counts: dict[str, int] = {}
@@ -4148,10 +4546,13 @@ class GeckoAI:
         if self._detect_class_listbox is None:
             return
         self._detect_class_listbox.delete(0, tk.END)
-        if self._detect_last_ocr_id:
-            self._detect_class_listbox.insert(tk.END, f"[OCR ID] {self._detect_last_ocr_id}")
-        if self._detect_last_ocr_sub_id:
-            self._detect_class_listbox.insert(tk.END, f"[OCR SUB ID] {self._detect_last_ocr_sub_id}")
+        sample = self._detect_golden_sample or {}
+        id_enabled = sample.get("id_class_id") is not None or bool(str(sample.get("id_class_name", "")).strip())
+        sub_id_enabled = sample.get("sub_id_class_id") is not None or bool(str(sample.get("sub_id_class_name", "")).strip())
+        if id_enabled:
+            self._detect_class_listbox.insert(tk.END, f"[OCR ID] {self._detect_last_ocr_id or '(none)'}")
+        if sub_id_enabled:
+            self._detect_class_listbox.insert(tk.END, f"[OCR SUB ID] {self._detect_last_ocr_sub_id or '(none)'}")
         counts = self._detect_class_counts(result0)
         if not counts:
             self._detect_class_listbox.insert(tk.END, "No detections")
@@ -4191,10 +4592,23 @@ class GeckoAI:
                 pass
             self._detect_video_cap = None
         self._detect_last_plot_bgr = None
+        self._detect_last_piece_results = []
+        self._detect_last_piece_paths = []
+        self._detect_piece_index = 0
+        self._detect_image_result_cache = {}
+        self._detect_report_logged_keys = set()
+        self._cleanup_detect_cut_piece_temp(remove_root=True)
         self._close_detect_report_logger()
 
     def _detect_prev_image(self) -> None:
         if not self._detect_image_paths:
+            return
+        if self._should_use_background_cut_detection() and len(self._detect_last_piece_results) > 1 and self._detect_piece_index > 0:
+            self._detect_piece_index -= 1
+            cur_img = os.path.abspath(self._detect_image_paths[self._detect_image_index])
+            if cur_img in self._detect_image_result_cache:
+                self._detect_image_result_cache[cur_img]["piece_index"] = self._detect_piece_index
+            self._render_detect_current_piece_result(self._detect_image_paths[self._detect_image_index])
             return
         self._detect_image_index = max(0, self._detect_image_index - 1)
         self._detect_render_image_index()
@@ -4202,6 +4616,14 @@ class GeckoAI:
     def _detect_next_image(self) -> None:
         if not self._detect_image_paths:
             return
+        if self._should_use_background_cut_detection() and len(self._detect_last_piece_results) > 1:
+            if self._detect_piece_index < len(self._detect_last_piece_results) - 1:
+                self._detect_piece_index += 1
+                cur_img = os.path.abspath(self._detect_image_paths[self._detect_image_index])
+                if cur_img in self._detect_image_result_cache:
+                    self._detect_image_result_cache[cur_img]["piece_index"] = self._detect_piece_index
+                self._render_detect_current_piece_result(self._detect_image_paths[self._detect_image_index])
+                return
         self._detect_image_index = min(len(self._detect_image_paths) - 1, self._detect_image_index + 1)
         self._detect_render_image_index()
 
@@ -4354,6 +4776,49 @@ class GeckoAI:
                 return
             directory = os.path.abspath(directory)
             self.logger.info("Selected directory: %s", directory)
+
+            if getattr(self, "_startup_mode", "chooser") != "detect":
+                run_cut_bg = messagebox.askyesno(
+                    "Cut Background",
+                    "Do you want to cut background and detect all images first?\n\n"
+                    "If Yes, one golden setup will be reused for all images.\n"
+                    "Default match threshold is 0.3.",
+                    parent=self.root,
+                )
+                if run_cut_bg:
+                    if not HAS_CV2:
+                        messagebox.showwarning(
+                            "Cut Background",
+                            "OpenCV is not available. Install opencv-python first.",
+                            parent=self.root,
+                        )
+                    else:
+                        try:
+                            from ai_labeller.cut_background_detect import run_cut_background_batch
+
+                            result = run_cut_background_batch(
+                                root_dir=directory,
+                                threshold=0.3,
+                                parent=self.root,
+                            )
+                            if result is not None:
+                                messagebox.showinfo(
+                                    "Cut Background Complete",
+                                    "Batch finished.\n\n"
+                                    f"Golden folder:\n{result.golden_dir}\n\n"
+                                    f"Output folder:\n{result.output_dir}\n\n"
+                                    f"Images scanned: {result.total_images}\n"
+                                    f"Boards detected: {result.processed_images}\n"
+                                    f"Total cut pieces: {result.total_crops}",
+                                    parent=self.root,
+                                )
+                        except Exception as exc:
+                            self.logger.exception("Cut background batch failed")
+                            messagebox.showerror(
+                                "Cut Background Error",
+                                f"Failed to run cut background batch:\n{exc}",
+                                parent=self.root,
+                            )
 
             diag = self.diagnose_folder_structure(directory)
             self.logger.info("Folder diagnosis: %s", diag)
@@ -6939,9 +7404,27 @@ class GeckoAI:
                     sub_id_class_id=sub_id_class_id,
                     sub_id_class_name=sub_id_class_name,
                 )
+
+            merged_cut_bg_files: list[str] = []
+            if messagebox.askyesno(
+                LANG_MAP[self.lang]["title"],
+                "Do you have background-cut golden files to combine?\n\n"
+                "If Yes, select that golden folder next.",
+                parent=self.root,
+            ):
+                cut_bg_dir = filedialog.askdirectory(
+                    parent=self.root,
+                    title="Select Background-Cut Golden Folder",
+                )
+                if cut_bg_dir:
+                    merged_cut_bg_files = self._merge_background_cut_golden_folder(cut_bg_dir, golden_dir)
+
+            done_msg = LANG_MAP[self.lang].get("golden_export_done", "Golden folder exported.\nOutput: {path}").format(path=golden_dir)
+            if merged_cut_bg_files:
+                done_msg += f"\nMerged background-cut files: {len(merged_cut_bg_files)}"
             messagebox.showinfo(
                 LANG_MAP[self.lang]["title"],
-                LANG_MAP[self.lang].get("golden_export_done", "Golden folder exported.\nOutput: {path}").format(path=golden_dir),
+                done_msg,
                 parent=self.root,
             )
         except Exception as exc:
@@ -6951,6 +7434,32 @@ class GeckoAI:
                 LANG_MAP[self.lang].get("golden_export_failed", "Golden export failed: {err}").format(err=exc),
                 parent=self.root,
             )
+
+    def _merge_background_cut_golden_folder(self, source_dir: str, golden_dir: str) -> list[str]:
+        src = os.path.abspath(source_dir).replace("\\", "/")
+        dst_root = os.path.join(golden_dir, "background_cut_golden").replace("\\", "/")
+        if not os.path.isdir(src):
+            raise FileNotFoundError(f"Background-cut golden folder not found: {src}")
+        os.makedirs(dst_root, exist_ok=True)
+
+        merged_files: list[str] = []
+        for base, _dirs, files in os.walk(src):
+            rel = os.path.relpath(base, src)
+            dst_dir = dst_root if rel in {".", ""} else os.path.join(dst_root, rel).replace("\\", "/")
+            os.makedirs(dst_dir, exist_ok=True)
+            for name in files:
+                src_path = os.path.join(base, name).replace("\\", "/")
+                dst_path = os.path.join(dst_dir, name).replace("\\", "/")
+                if os.path.exists(dst_path):
+                    stem, ext = os.path.splitext(name)
+                    suffix = 1
+                    while os.path.exists(os.path.join(dst_dir, f"{stem}_{suffix}{ext}").replace("\\", "/")):
+                        suffix += 1
+                    dst_path = os.path.join(dst_dir, f"{stem}_{suffix}{ext}").replace("\\", "/")
+                shutil.copy2(src_path, dst_path)
+                merged_files.append(dst_path)
+
+        return merged_files
     
     def export_full_coco(self):
         """Export dataset as COCO (placeholder)."""

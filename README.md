@@ -15,6 +15,12 @@ Desktop image annotation tool for object detection datasets (Tkinter + Ultralyti
 - Undo/redo history (`Ctrl+Z`, `Ctrl+Y`)
 - Image navigation (`F` next/save, `D` previous)
 - YOLO detection from UI (`Run Detection`)
+- Detect mode golden workflow enhancements:
+  - Import golden folder and auto-load `background_cut_golden` bundle when present
+  - Auto cut background and detect cut pieces for each source image
+  - Piece-by-piece display and navigation in detect workspace
+  - Cached detect results per source image (back/next does not re-run detection)
+  - Report dedupe (same image/piece is not appended repeatedly)
 - Startup source selection:
   - Dropdown chooser (default: `Open Images Folder`)
   - Open YOLO Dataset
@@ -37,6 +43,10 @@ Desktop image annotation tool for object detection datasets (Tkinter + Ultralyti
   - Add / rename / delete class in class table
   - Deleting a class reindexes following class IDs automatically
 - Auto-detect and propagate options (3 propagate modes: no-label-only / always / selected labels only)
+- OCR for golden ID/Sub ID:
+  - EasyOCR first, PaddleOCR fallback
+  - OCR runs on selected ID-class detection area only
+  - OCR auto-tries 0/90/180/270 rotations for rotated text
 - Scrollable right settings panel
 - Remove/restore bad frames from split (icon buttons beside image dropdown)
 - File info counters: boxes, and classes in current frame / total classes
@@ -195,6 +205,10 @@ uvicorn app:app --host 127.0.0.1 --port 8000 --reload
 - Default detection model mode is `Official YOLO26m.pt (Bundled)`.
 - If the official model file is unavailable locally, import a custom `.pt/.onnx` model from the UI.
 - If CUDA/GPU runtime is incompatible, detection/training automatically falls back to CPU.
+- Detect mode in golden background-cut workflow:
+  - Each cut piece is written as an image and detected
+  - `F`/`D` navigation reuses cached results instead of re-detecting the same source image
+  - CSV report rows are written once per unique image/piece key
 - To use your own Tk app icon, put `app_icon.png` in `src/ai_labeller/assets/`.
 - Session file: `~/.ai_labeller_session.json`.
 - Project progress YAML: `<project_root>/.ai_labeller_progress.yaml` (resume split/image and class names after reopen).
