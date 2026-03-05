@@ -21,6 +21,11 @@ Desktop image annotation tool for object detection datasets (Tkinter + Ultralyti
   - Piece-by-piece display and navigation in detect workspace
   - Cached detect results per source image (back/next does not re-run detection)
   - Report dedupe (same image/piece is not appended repeatedly)
+- Detect mode setup wizard:
+  - Step 1: Choose model
+  - Step 2: Choose source (`Camera` or `Image Folder`)
+  - Camera path: pick camera (when multiple cameras are found), choose auto/manual FPS mode, set confidence threshold
+  - Image folder path: choose source folder, confidence threshold, run type, output folder, then start detect
 - Startup source selection:
   - Dropdown chooser (default: `Open Images Folder`)
   - Open YOLO Dataset
@@ -52,11 +57,11 @@ Desktop image annotation tool for object detection datasets (Tkinter + Ultralyti
 - File info counters: boxes, and classes in current frame / total classes
 - Image dropdown jump
 - Session resume (last project/split/image/model settings)
-- English/Chinese UI switch and light/dark theme
+- English UI and light/dark theme
 - Export controls in top toolbar (next to undo/redo):
   - Format dropdown (`YOLO (.txt)` / `JSON`)
   - `Export`
-  - `Golden` (export golden folder)
+  - `Export Golden` (export golden folder)
 - Previous-label ghost workflow:
   - Optional ghost overlay of last image labels (dotted)
   - Right-click on a ghost box to paste only that clicked box

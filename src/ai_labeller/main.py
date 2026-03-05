@@ -156,107 +156,7 @@ THEMES = {
 
 # ==================== Language ====================
 LANG_MAP = {
-    "zh": {
-    "title": "AI 標註專業版",
-    "load_proj": "載入專案",
-    "undo": "復原",
-    "redo": "重做",
-    "autolabel": "紅色檢測",
-    "fuse": "合併框",
-    "file_info": "檔案資訊",
-    "no_img": "沒有影像",
-    "filename": "檔案",
-    "progress": "進度",
-    "boxes": "框",
-    "class_mgmt": "類別管理",
-    "current_class": "目前類別",
-    "edit_classes": "編輯類別",
-    "reassign_class": "重新指定所選類別",
-    "clear_labels": "刪除所有標註",
-    "add": "新增",
-    "rename": "重新命名",
-    "apply": "套用",
-    "delete_class": "刪除類別",
-    "delete_class_confirm": "刪除類別 '{name}' (ID {idx})？\n目前影像中此類別的標註將被重新指定。",
-    "delete_class_last": "無法刪除最後一個類別。",
-    "class_name": "類別名稱",
-    "rename_prompt": "修改 '{name}':",
-    "add_prompt": "類別名稱：",
-    "current": "目前",
-    "to": "至",
-    "no_label_selected": "未選取任何標註。",
-    "no_classes_available": "沒有可用的類別。",
-    "theme_light": "淺色模式",
-    "theme_dark": "深色模式",
-    "export_format": "全部匯出為",
-    "ai_tools": "AI 工具",
-    "auto_detect": "自動檢測",
-    "learning": "學習",
-    "foundation_mode": "基礎輔助",
-    "propagate": "傳播",
-    "run_detection": "執行檢測",
-    "train_from_labels": "以現有標註開始訓練",
-    "detection_model": "檢測模型",
-    "browse_model": "瀏覽模型",
-    "train_range_start": "起始索引（從 1 開始）",
-    "train_range_end": "結束索引（從 1 開始）",
-    "train_epochs": "訓練回合數（Epochs）",
-    "train_imgsz": "訓練影像尺寸",
-    "select_train_output": "選擇訓練輸出資料夾",
-    "train_no_project": "尚未載入資料集。",
-    "train_no_labels": "找不到可用於訓練的已標註影像。",
-    "train_bad_range": "區間無效，請輸入正確的起始與結束索引。",
-    "train_done": "訓練完成。\n輸出位置：{path}",
-    "train_failed": "訓練失敗：{err}",
-    "train_monitor": "訓練監控",
-    "train_status": "狀態",
-    "train_progress": "進度",
-    "train_eta": "預估剩餘時間",
-    "train_idle": "閒置",
-    "train_running": "訓練中",
-    "train_command": "命令",
-    "train_already_running": "目前已有訓練在執行中。",
-    "use_official_yolo26n": "使用官方 yolo26m.pt",
-    "export": "全部匯出",
-    "prev": "上一個",
-    "next": "下一個",
-    "shortcuts": "快捷鍵",
-    "shortcut_help": "快捷鍵說明",
-    "dataset": "資料集",
-    "lang_switch": "EN",
-    "delete": "刪除所選",
-    "remove_from_split": "從分割中移除",
-    "remove_confirm": "要將目前影像從 {split} 移除嗎？",
-    "remove_done": "已移除：{name}",
-    "remove_none": "沒有可移除的影像。",
-    "restore_from_split": "恢復已刪除影格",
-    "restore_none": "此分割中沒有找到已刪除的影格。",
-    "restore_title": "恢復已刪除影格",
-    "restore_select": "選擇要恢復的影格：",
-    "restore_done": "已恢復：{name}",
-    "select_image": "選擇影像",
-    "startup_choose_source": "選擇啟動來源",
-    "startup_prompt": "您要如何開始？",
-    "startup_images": "開啟影像資料夾",
-    "startup_yolo": "開啟 YOLO 資料集",
-    "startup_rfdetr": "開啟 RF-DETR 資料集",
-    "startup_skip": "稍後",
-    "back_to_source": "返回來源選擇",
-    "startup_model_cancel_title": "模型選擇已取消",
-    "startup_model_cancel_msg": "未選擇模型。僅繼續使用影像資料夾？",
-    "pick_folder_title": "選擇資料夾",
-    "loaded_from": "已載入 {count} 張影像\n來源：{path}\n分割：{split}",
-    "no_supported_images": "未找到支援的影像 (png/jpg/jpeg)\n資料夾：{path}",
-    "select_export_folder": "選擇匯出資料夾",
-    "select_export_parent_folder": "選擇匯出父資料夾",
-    "export_create_val_prompt": "是否使用 brightness 調整來建立 validation set？",
-    "export_val_disabled_cv2": "未安裝 OpenCV，已跳過 validation augmentation。",
-    "export_val_done": "已建立 validation set：{count} 張影像",
-    "export_val_empty": "train 找不到可用影像，無法建立 validation set。",
-    "export_no_project": "尚未載入資料集。",
-    "export_done": "匯出完成：{count} 張影像\n輸出：{path}",
-    "export_failed": "匯出失敗：{err}"
-},
+    "zh": {},
     "en": {
         "title": "GeckoAI",
         "load_proj": "Load Project",
@@ -370,7 +270,7 @@ def _looks_garbled_text(text: str) -> bool:
     if not text:
         return False
     # Common mojibake markers seen in broken CP950/UTF-8 conversions.
-    bad_markers = ("�", "銝", "頛", "撠", "嚗", "瘝", "", "", "")
+    bad_markers = ("??",)
     if any(m in text for m in bad_markers):
         return True
     # Many placeholder question marks usually indicate broken labels.
@@ -485,11 +385,17 @@ class GeckoAI:
         self._detect_after_id: str | None = None
         self._detect_preferred_device: Any = "cpu"
         self._detect_conf_threshold = float(self.var_yolo_conf.get())
+        self._detect_frame_interval_ms = 15
+        self._detect_camera_max_fps = 0.0
         self._detect_report_csv_path: str | None = None
         self._detect_report_mode: str = "pure_detect"
         self._detect_video_frame_idx = 0
         self._detect_report_generated_paths: set[str] = set()
         self._detect_source_selected = False
+        self.detect_camera_mode_var = tk.StringVar(value="auto")
+        self.detect_camera_index_var = tk.StringVar(value="0")
+        self.detect_manual_fps_var = tk.StringVar(value="10")
+        self._detect_available_cameras: list[int] = []
         self.detect_run_mode_var = tk.StringVar(value="pure_detect")
         self.detect_golden_mode_var = tk.StringVar(value="both")
         self.detect_golden_iou_var = tk.DoubleVar(value=0.50)
@@ -523,6 +429,14 @@ class GeckoAI:
         self.training_total_epochs = 0
         self.training_current_epoch = 0
         self.train_command_var = tk.StringVar(value="")
+        self._training_stop_requested = False
+        self._training_monitor_win: tk.Toplevel | None = None
+        self.lbl_train_status: tk.Label | None = None
+        self.lbl_train_progress: tk.Label | None = None
+        self.lbl_train_eta: tk.Label | None = None
+        self.entry_train_cmd: tk.Entry | None = None
+        self.txt_train_log: tk.Text | None = None
+        self._training_log_lines: list[str] = []
         
         self.setup_custom_style()
         self.setup_ui()
@@ -835,16 +749,22 @@ class GeckoAI:
         # Undo/redo
         self.create_toolbar_icon_button(
             center_frame,
-            text="←",
+            text="\u21B6",
             command=self.undo,
-            tooltip=LANG_MAP[self.lang]["undo"]
+            tooltip=LANG_MAP[self.lang]["undo"],
+            bg="#000000",
+            fg="#FFFFFF",
+            circular=True,
         ).pack(side="left", padx=2)
         
         self.create_toolbar_icon_button(
             center_frame,
-            text="→",
+            text="\u21B7",
             command=self.redo,
-            tooltip=LANG_MAP[self.lang]["redo"]
+            tooltip=LANG_MAP[self.lang]["redo"],
+            bg="#000000",
+            fg="#FFFFFF",
+            circular=True,
         ).pack(side="left", padx=2)
         
         tk.Frame(center_frame, width=1, bg=COLORS["divider"]).pack(side="left", fill="y", padx=8, pady=10)
@@ -867,9 +787,16 @@ class GeckoAI:
 
         self.create_toolbar_button(
             center_frame,
-            text="Golden",
+            text="Export Golden",
             command=self.export_golden_folder,
             bg=COLORS["warning"],
+        ).pack(side="left", padx=2, pady=8)
+
+        self.create_toolbar_button(
+            center_frame,
+            text=LANG_MAP[self.lang].get("train_from_labels", "Train From Labels"),
+            command=self.start_training_from_labels,
+            bg=COLORS["danger"],
         ).pack(side="left", padx=2, pady=8)
 
         # Right section
@@ -887,13 +814,6 @@ class GeckoAI:
             bg=COLORS["bg_medium"]
         ).pack(side="right", padx=4, pady=12)
 
-        # Language toggle
-        self.create_toolbar_button(
-            right_frame,
-            text=LANG_MAP[self.lang]["lang_switch"],
-            command=self.toggle_language,
-            bg=COLORS["bg_medium"]
-        ).pack(side="right", padx=4, pady=12)
     
     def create_toolbar_button(self, parent, text, command, bg=None):
         """Create a standard toolbar button."""
@@ -1055,23 +975,26 @@ class GeckoAI:
             self._tooltip_win.destroy()
             self._tooltip_win = None
     
-    def create_toolbar_icon_button(self, parent, text, command, tooltip="", bg=None):
+    def create_toolbar_icon_button(self, parent, text, command, tooltip="", bg=None, fg=None, circular=False):
         """Create compact icon-style toolbar button."""
         bg_val = bg or COLORS["bg_medium"]
-        fg_val = self.toolbar_text_color(bg_val)
+        fg_val = fg or self.toolbar_text_color(bg_val)
+        icon_font = ("Segoe UI Symbol", 14, "bold") if circular else ("Arial", 14)
         btn = tk.Button(
             parent,
             text=text,
             command=command,
             bg=bg_val,
             fg=fg_val,
-            font=("Arial", 14),
+            font=icon_font,
             relief="flat",
-            width=3,
+            width=2 if circular else 3,
             height=1,
             cursor="hand2",
             borderwidth=0,
-            highlightthickness=0
+            highlightthickness=0,
+            padx=6 if circular else 0,
+            pady=2 if circular else 0,
         )
         
         # Hover effects
@@ -1091,6 +1014,8 @@ class GeckoAI:
     
     def lighten_color(self, color):
         """Return a lighter variant for known accent colors."""
+        if color == "#000000":
+            return "#1A1A1A"
         if color == COLORS["danger"]:
             return "#FF6B54"
         elif color == COLORS["warning"]:
@@ -1317,7 +1242,7 @@ class GeckoAI:
 
         self.create_toolbar_icon_button(
             image_select_row,
-            text="✖",
+            text="\u2716",
             command=self.remove_current_from_split,
             tooltip=LANG_MAP[self.lang].get("remove_from_split", "Remove From Split"),
             bg=COLORS["danger"],
@@ -1325,7 +1250,7 @@ class GeckoAI:
 
         self.create_toolbar_icon_button(
             image_select_row,
-            text="↺",
+            text="\u21BA",
             command=self.open_restore_removed_dialog,
             tooltip=LANG_MAP[self.lang].get("restore_from_split", "Restore Deleted Frame"),
             bg=COLORS["success"],
@@ -1510,115 +1435,6 @@ class GeckoAI:
             bg=COLORS["success"]
         ).pack(fill="x", pady=(12, 0))
 
-        self.create_primary_button(
-            content,
-            text=LANG_MAP[self.lang].get("train_from_labels", "Train From Labels"),
-            command=self.start_training_from_labels,
-            bg=COLORS["warning"],
-        ).pack(fill="x", pady=(8, 0))
-
-        tk.Label(
-            content,
-            text=LANG_MAP[self.lang].get("train_monitor", "Training Monitor"),
-            font=self.font_bold,
-            fg=COLORS["text_primary"],
-            bg=COLORS["bg_white"],
-            anchor="w",
-        ).pack(fill="x", pady=(12, 6))
-
-        self.lbl_train_status = tk.Label(
-            content,
-            text=f"{LANG_MAP[self.lang].get('train_status', 'Status')}: {LANG_MAP[self.lang].get('train_idle', 'Idle')}",
-            font=self.font_primary,
-            fg=COLORS["text_secondary"],
-            bg=COLORS["bg_white"],
-            anchor="w",
-        )
-        self.lbl_train_status.pack(fill="x")
-
-        self.lbl_train_progress = tk.Label(
-            content,
-            text=f"{LANG_MAP[self.lang].get('train_progress', 'Progress')}: -",
-            font=self.font_primary,
-            fg=COLORS["text_secondary"],
-            bg=COLORS["bg_white"],
-            anchor="w",
-        )
-        self.lbl_train_progress.pack(fill="x")
-
-        self.lbl_train_eta = tk.Label(
-            content,
-            text=f"{LANG_MAP[self.lang].get('train_eta', 'ETA')}: -",
-            font=self.font_primary,
-            fg=COLORS["text_secondary"],
-            bg=COLORS["bg_white"],
-            anchor="w",
-        )
-        self.lbl_train_eta.pack(fill="x", pady=(0, 4))
-
-        tk.Label(
-            content,
-            text=LANG_MAP[self.lang].get("train_command", "Command"),
-            font=self.font_primary,
-            fg=COLORS["text_secondary"],
-            bg=COLORS["bg_white"],
-            anchor="w",
-        ).pack(fill="x")
-
-        self.entry_train_cmd = tk.Entry(
-            content,
-            textvariable=self.train_command_var,
-            font=self.font_mono,
-            state="readonly",
-            readonlybackground=COLORS["bg_light"],
-            fg=COLORS["text_primary"],
-        )
-        self.entry_train_cmd.pack(fill="x", pady=(0, 6))
-
-        log_wrap = tk.Frame(content, bg=COLORS["bg_white"])
-        log_wrap.pack(fill="both", expand=True)
-        log_wrap.grid_rowconfigure(0, weight=1)
-        log_wrap.grid_columnconfigure(0, weight=1)
-        self.txt_train_log = tk.Text(
-            log_wrap,
-            height=8,
-            wrap="none",
-            font=self.font_mono,
-            bg=COLORS["bg_light"],
-            fg=COLORS["text_primary"],
-            relief="flat",
-        )
-        self.txt_train_log.grid(row=0, column=0, sticky="nsew")
-        sb_log_y = tk.Scrollbar(
-            log_wrap,
-            orient="vertical",
-            command=self.txt_train_log.yview,
-            width=12,
-            bg=COLORS["bg_medium"],
-            troughcolor=COLORS["bg_dark"],
-            activebackground=COLORS["primary"],
-            highlightthickness=0,
-            relief="flat",
-            borderwidth=0,
-        )
-        sb_log_y.grid(row=0, column=1, sticky="ns")
-        sb_log_x = tk.Scrollbar(
-            log_wrap,
-            orient="horizontal",
-            command=self.txt_train_log.xview,
-            width=12,
-            bg=COLORS["bg_medium"],
-            troughcolor=COLORS["bg_dark"],
-            activebackground=COLORS["primary"],
-            highlightthickness=0,
-            relief="flat",
-            borderwidth=0,
-        )
-        sb_log_x.grid(row=1, column=0, sticky="ew")
-        self.txt_train_log.configure(
-            yscrollcommand=sb_log_y.set,
-            xscrollcommand=sb_log_x.set,
-        )
     
     def create_shortcut_card(self, parent):
         """Render shortcut hint list."""
@@ -1709,22 +1525,30 @@ class GeckoAI:
 
     def create_secondary_button(self, parent, text, command):
         """Create a secondary sidebar button."""
+        label = str(text).strip().lower()
+        is_back_button = label.startswith("back")
+        base_bg = COLORS["danger"] if is_back_button else COLORS["bg_white"]
+        base_fg = COLORS["text_white"] if is_back_button else COLORS["text_primary"]
+        hover_bg = self.lighten_color(base_bg) if is_back_button else COLORS["bg_light"]
         btn = tk.Button(
             parent,
             text=text,
             command=command,
-            bg=COLORS["bg_white"],
-            fg=COLORS["text_primary"],
+            bg=base_bg,
+            fg=base_fg,
             font=self.font_primary,
             relief="flat",
             pady=10,
             cursor="hand2",
-            borderwidth=1,
+            borderwidth=0 if is_back_button else 1,
             highlightthickness=0
         )
-        btn.config(highlightbackground=COLORS["border"], highlightcolor=COLORS["border"])
-        btn.bind("<Enter>", lambda e: btn.config(bg=COLORS["bg_light"]))
-        btn.bind("<Leave>", lambda e: btn.config(bg=COLORS["bg_white"]))
+        if is_back_button:
+            btn.config(highlightbackground=base_bg, highlightcolor=base_bg)
+        else:
+            btn.config(highlightbackground=COLORS["border"], highlightcolor=COLORS["border"])
+        btn.bind("<Enter>", lambda e: btn.config(bg=hover_bg))
+        btn.bind("<Leave>", lambda e: btn.config(bg=base_bg))
         return btn
     
     def create_nav_button(self, parent, text, command, side, primary=False):
@@ -1763,9 +1587,8 @@ class GeckoAI:
             btn.pack(side="right", fill="both", expand=True, padx=(4, 0))
     
     def toggle_language(self):
-        """Toggle UI language."""
-        self.lang = "en" if self.lang == "zh" else "zh"
-        self.rebuild_ui()
+        """Language switching disabled (English-only mode)."""
+        self.lang = "en"
     
     def update_info_text(self):
         """Refresh filename/progress/box counters."""
@@ -2288,7 +2111,7 @@ class GeckoAI:
 
         tk.Label(
             card,
-            text="Detect Mode - Step 1/2",
+            text="Detect Mode - Step 1",
             font=self.font_title,
             fg=COLORS["text_primary"],
             bg=COLORS["bg_white"],
@@ -2344,12 +2167,6 @@ class GeckoAI:
                 command=switch_to_label_mode,
             ).pack(fill="x", padx=28, pady=(0, 10))
 
-        self.create_secondary_button(
-            card,
-            text="Exit",
-            command=self.on_app_close,
-        ).pack(fill="x", padx=28, pady=(0, 18))
-
     def show_detect_source_page(self) -> None:
         """Detect setup step 2: source selection page."""
         self._detect_mode_active = True
@@ -2363,11 +2180,11 @@ class GeckoAI:
         wrap.pack(fill="both", expand=True)
 
         card = tk.Frame(wrap, bg=COLORS["bg_white"], bd=0, highlightthickness=0)
-        card.place(relx=0.5, rely=0.5, anchor="center", width=760, height=760)
+        card.place(relx=0.5, rely=0.5, anchor="center", width=700, height=520)
 
         tk.Label(
             card,
-            text="Detect Mode - Step 2/2",
+            text="Detect Mode - Step 2",
             font=self.font_title,
             fg=COLORS["text_primary"],
             bg=COLORS["bg_white"],
@@ -2376,7 +2193,7 @@ class GeckoAI:
 
         tk.Label(
             card,
-            text="Choose source and start detection",
+            text="Choose source type",
             font=self.font_primary,
             fg=COLORS["text_secondary"],
             bg=COLORS["bg_white"],
@@ -2416,6 +2233,245 @@ class GeckoAI:
             bg=COLORS["success"],
         ).pack(fill="x", padx=28, pady=(0, 12))
 
+        self.create_secondary_button(
+            card,
+            text="Back: Choose Model",
+            command=self.show_detect_mode_page,
+        ).pack(fill="x", padx=28, pady=(0, 10))
+
+    def show_detect_camera_mode_page(self) -> None:
+        """Detect setup step 3 (camera): choose auto/manual speed and start."""
+        self._detect_mode_active = True
+        self._stop_detect_stream()
+        self._detect_workspace_frame = None
+        self.hide_shortcut_tooltip()
+        for child in self.root.winfo_children():
+            child.destroy()
+
+        wrap = tk.Frame(self.root, bg=COLORS["bg_dark"])
+        wrap.pack(fill="both", expand=True)
+        card = tk.Frame(wrap, bg=COLORS["bg_white"], bd=0, highlightthickness=0)
+        card.place(relx=0.5, rely=0.5, anchor="center", width=760, height=600)
+
+        tk.Label(
+            card,
+            text="Detect Mode - Step 3 (Camera)",
+            font=self.font_title,
+            fg=COLORS["text_primary"],
+            bg=COLORS["bg_white"],
+            anchor="center",
+        ).pack(fill="x", padx=24, pady=(28, 8))
+        tk.Label(
+            card,
+            text="Choose camera speed mode",
+            font=self.font_primary,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="center",
+        ).pack(fill="x", padx=24, pady=(0, 14))
+
+        cams = self._detect_available_cameras[:] or self._scan_available_cameras()
+        self._detect_available_cameras = cams[:]
+        if not cams:
+            messagebox.showwarning("Detect Mode", "No camera found.", parent=self.root)
+            self.show_detect_source_page()
+            return
+        cam_values = [str(c) for c in cams]
+        selected_cam = self.detect_camera_index_var.get().strip()
+        if selected_cam not in cam_values:
+            selected_cam = cam_values[0]
+            self.detect_camera_index_var.set(selected_cam)
+        self.detect_media_path_var.set(selected_cam)
+
+        if len(cam_values) > 1:
+            tk.Label(
+                card,
+                text="Camera",
+                font=self.font_primary,
+                fg=COLORS["text_secondary"],
+                bg=COLORS["bg_white"],
+                anchor="w",
+            ).pack(fill="x", padx=28, pady=(0, 4))
+            camera_combo = ttk.Combobox(
+                card,
+                textvariable=self.detect_camera_index_var,
+                values=cam_values,
+                state="readonly",
+                font=self.font_primary,
+            )
+            camera_combo.pack(fill="x", padx=28, pady=(0, 10))
+
+            def _on_camera_changed(_e: Any = None) -> None:
+                self.detect_media_path_var.set(self.detect_camera_index_var.get().strip())
+                self.show_detect_camera_mode_page()
+
+            camera_combo.bind("<<ComboboxSelected>>", _on_camera_changed)
+
+        max_fps = self._get_camera_max_fps(int(selected_cam))
+        max_hint = f"Max FPS: {max_fps:.1f}" if max_fps > 0 else "Max FPS: Unknown (camera did not report)"
+        tk.Label(
+            card,
+            text=max_hint,
+            font=self.font_mono,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="w",
+        ).pack(fill="x", padx=28, pady=(0, 10))
+
+        mode_row = tk.Frame(card, bg=COLORS["bg_white"])
+        mode_row.pack(fill="x", padx=28, pady=(0, 10))
+        tk.Radiobutton(
+            mode_row,
+            text="Auto Mode (use camera max FPS)",
+            variable=self.detect_camera_mode_var,
+            value="auto",
+            bg=COLORS["bg_white"],
+            fg=COLORS["text_primary"],
+            selectcolor=COLORS["bg_white"],
+            font=self.font_primary,
+            anchor="w",
+            command=self.show_detect_camera_mode_page,
+        ).pack(anchor="w")
+        tk.Radiobutton(
+            mode_row,
+            text="Manual Mode (preferred FPS)",
+            variable=self.detect_camera_mode_var,
+            value="manual",
+            bg=COLORS["bg_white"],
+            fg=COLORS["text_primary"],
+            selectcolor=COLORS["bg_white"],
+            font=self.font_primary,
+            anchor="w",
+            command=self.show_detect_camera_mode_page,
+        ).pack(anchor="w", pady=(4, 0))
+
+        if self.detect_camera_mode_var.get().strip().lower() == "manual":
+            manual_row = tk.Frame(card, bg=COLORS["bg_white"])
+            manual_row.pack(fill="x", padx=28, pady=(0, 12))
+            tk.Label(
+                manual_row,
+                text="Preferred FPS",
+                font=self.font_primary,
+                fg=COLORS["text_secondary"],
+                bg=COLORS["bg_white"],
+            ).pack(side="left")
+            tk.Entry(
+                manual_row,
+                textvariable=self.detect_manual_fps_var,
+                width=10,
+                font=self.font_primary,
+            ).pack(side="left", padx=(8, 12))
+            if max_fps > 0:
+                max_text = f"max {max_fps:.1f}"
+            else:
+                max_text = "max depends on camera"
+            tk.Label(
+                manual_row,
+                text=max_text,
+                font=self.font_mono,
+                fg=COLORS["text_secondary"],
+                bg=COLORS["bg_white"],
+            ).pack(side="left")
+
+        conf_value = max(0.01, min(1.0, float(self.detect_conf_var.get())))
+        self.detect_conf_var.set(conf_value)
+        conf_text = tk.StringVar(value=f"Conf Threshold: {conf_value:.2f}")
+        tk.Label(
+            card,
+            textvariable=conf_text,
+            font=self.font_primary,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="w",
+        ).pack(fill="x", padx=28, pady=(0, 4))
+        conf_scale = ttk.Scale(
+            card,
+            from_=0.01,
+            to=1.0,
+            variable=self.detect_conf_var,
+            orient="horizontal",
+        )
+        conf_scale.pack(fill="x", padx=28, pady=(0, 12))
+        conf_scale.configure(command=lambda _v: conf_text.set(f"Conf Threshold: {float(self.detect_conf_var.get()):.2f}"))
+
+        out_dir = self.detect_output_dir_var.get().strip()
+        out_hint = out_dir if out_dir else "(auto) current project root"
+        tk.Label(
+            card,
+            text=f"Output CSV folder: {out_hint}",
+            font=self.font_mono,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="w",
+            justify="left",
+            wraplength=680,
+        ).pack(fill="x", padx=28, pady=(0, 8))
+        self.create_secondary_button(
+            card,
+            text="Optional: Choose Output Folder",
+            command=self._on_detect_choose_output_dir,
+        ).pack(fill="x", padx=28, pady=(0, 14))
+
+        self.create_primary_button(
+            card,
+            text="Start Detect",
+            command=self._start_detect_from_setup,
+            bg=COLORS["success"],
+        ).pack(fill="x", padx=28, pady=(0, 10))
+        self.create_secondary_button(
+            card,
+            text="Back: Choose Source",
+            command=self.show_detect_source_page,
+        ).pack(fill="x", padx=28, pady=(0, 10))
+
+    def show_detect_file_settings_page(self) -> None:
+        """Detect setup step 3 (image folder): configure run settings and start."""
+        self._detect_mode_active = True
+        self._stop_detect_stream()
+        self._detect_workspace_frame = None
+        self.hide_shortcut_tooltip()
+        for child in self.root.winfo_children():
+            child.destroy()
+
+        wrap = tk.Frame(self.root, bg=COLORS["bg_dark"])
+        wrap.pack(fill="both", expand=True)
+        card = tk.Frame(wrap, bg=COLORS["bg_white"], bd=0, highlightthickness=0)
+        card.place(relx=0.5, rely=0.5, anchor="center", width=760, height=760)
+
+        tk.Label(
+            card,
+            text="Detect Mode - Step 3 (Image Folder)",
+            font=self.font_title,
+            fg=COLORS["text_primary"],
+            bg=COLORS["bg_white"],
+            anchor="center",
+        ).pack(fill="x", padx=24, pady=(28, 8))
+        tk.Label(
+            card,
+            text="Set confidence threshold and run options",
+            font=self.font_primary,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="center",
+        ).pack(fill="x", padx=24, pady=(0, 14))
+
+        src_text = self.detect_media_path_var.get().strip() or "None"
+        tk.Label(
+            card,
+            text=f"Source Folder: {src_text}",
+            font=self.font_mono,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="w",
+            justify="left",
+            wraplength=680,
+        ).pack(fill="x", padx=28, pady=(0, 8))
+        self.create_secondary_button(
+            card,
+            text="Choose Source Folder",
+            command=self._on_detect_browse_media_file,
+        ).pack(fill="x", padx=28, pady=(0, 12))
+
         conf_value = max(0.01, min(1.0, float(self.detect_conf_var.get())))
         self.detect_conf_var.set(conf_value)
         conf_text = tk.StringVar(value=f"Conf Threshold: {conf_value:.2f}")
@@ -2453,7 +2509,7 @@ class GeckoAI:
             font=self.font_primary,
         )
         mode_combo.pack(fill="x", padx=28, pady=(0, 12))
-        mode_combo.bind("<<ComboboxSelected>>", lambda _e: self.show_detect_source_page())
+        mode_combo.bind("<<ComboboxSelected>>", lambda _e: self.show_detect_file_settings_page())
 
         if self.detect_run_mode_var.get().strip().lower() == "golden":
             golden_summary = "None"
@@ -2536,7 +2592,7 @@ class GeckoAI:
             bg=COLORS["bg_white"],
             anchor="w",
             justify="left",
-            wraplength=620,
+            wraplength=680,
         ).pack(fill="x", padx=28, pady=(0, 8))
         self.create_secondary_button(
             card,
@@ -2550,11 +2606,10 @@ class GeckoAI:
             command=self._start_detect_from_setup,
             bg=COLORS["success"],
         ).pack(fill="x", padx=28, pady=(0, 10))
-
         self.create_secondary_button(
             card,
-            text="Back: Choose Model",
-            command=self.show_detect_mode_page,
+            text="Back: Choose Source",
+            command=self.show_detect_source_page,
         ).pack(fill="x", padx=28, pady=(0, 10))
 
     def _on_detect_pick_model(self) -> None:
@@ -2581,10 +2636,17 @@ class GeckoAI:
         self.show_detect_source_page()
 
     def _on_detect_choose_camera(self) -> None:
+        cams = self._scan_available_cameras()
+        if not cams:
+            messagebox.showwarning("Detect Mode", "No camera found.", parent=self.root)
+            return
+        self._detect_available_cameras = cams[:]
+        if str(self.detect_camera_index_var.get().strip()) not in {str(c) for c in cams}:
+            self.detect_camera_index_var.set(str(cams[0]))
         self.detect_source_mode_var.set("camera")
-        self.detect_media_path_var.set("")
+        self.detect_media_path_var.set(self.detect_camera_index_var.get().strip() or "0")
         self._detect_source_selected = True
-        self.show_detect_source_page()
+        self.show_detect_camera_mode_page()
 
     def _on_detect_browse_media_file(self) -> None:
         src = filedialog.askdirectory(
@@ -2600,7 +2662,7 @@ class GeckoAI:
         self.detect_source_mode_var.set("file")
         self.detect_media_path_var.set(src_abs)
         self._detect_source_selected = True
-        self.show_detect_source_page()
+        self.show_detect_file_settings_page()
 
     def _on_detect_choose_output_dir(self) -> None:
         out_dir = filedialog.askdirectory(
@@ -2610,7 +2672,48 @@ class GeckoAI:
         if not out_dir:
             return
         self.detect_output_dir_var.set(os.path.abspath(out_dir))
+        self._show_detect_settings_page_for_current_source()
+
+    def _show_detect_settings_page_for_current_source(self) -> None:
+        source = self.detect_source_mode_var.get().strip().lower()
+        if source == "camera":
+            self.show_detect_camera_mode_page()
+            return
+        if source == "file":
+            self.show_detect_file_settings_page()
+            return
         self.show_detect_source_page()
+
+    def _scan_available_cameras(self, max_probe: int = 6) -> list[int]:
+        if not HAS_CV2:
+            return []
+        cams: list[int] = []
+        for cam_idx in range(max_probe):
+            cap = cv2.VideoCapture(cam_idx)
+            if not cap.isOpened():
+                cap.release()
+                continue
+            ok, _ = cap.read()
+            cap.release()
+            if ok:
+                cams.append(cam_idx)
+        return cams
+
+    def _get_camera_max_fps(self, camera_index: int = 0) -> float:
+        if not HAS_CV2:
+            return 0.0
+        cap = cv2.VideoCapture(camera_index)
+        if not cap.isOpened():
+            return 0.0
+        try:
+            fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+        except Exception:
+            fps = 0.0
+        finally:
+            cap.release()
+        if fps > 0 and camera_index == int(self.detect_camera_index_var.get().strip() or "0"):
+            self._detect_camera_max_fps = fps
+        return max(0.0, fps)
 
     def _configure_detect_golden_sample(self) -> None:
         golden_dir = filedialog.askdirectory(
@@ -2692,7 +2795,7 @@ class GeckoAI:
             "background_cut_template": bg_cut_bundle_meta.get("template_path") if bg_cut_bundle_meta else None,
         }
         self.detect_run_mode_var.set("golden")
-        self.show_detect_source_page()
+        self._show_detect_settings_page_for_current_source()
 
     def _load_detect_background_cut_bundle(self, golden_dir: str) -> dict[str, Any] | None:
         if not HAS_CV2:
@@ -2858,7 +2961,7 @@ class GeckoAI:
         }
         self.detect_run_mode_var.set("golden")
         self._cleanup_golden_capture_temp()
-        self.show_detect_source_page()
+        self._show_detect_settings_page_for_current_source()
         messagebox.showinfo(
             "Golden Sample",
             f"Golden exported:\nLabel: {lbl_dst}\nMapping YAML: {yaml_dst}",
@@ -2867,10 +2970,10 @@ class GeckoAI:
 
     def _cancel_golden_capture_and_back_to_detect(self) -> None:
         if not self._golden_capture_active:
-            self.show_detect_source_page()
+            self._show_detect_settings_page_for_current_source()
             return
         self._cleanup_golden_capture_temp()
-        self.show_detect_source_page()
+        self._show_detect_settings_page_for_current_source()
 
     def _cleanup_golden_capture_temp(self) -> None:
         tmp_root = self._golden_capture_temp_root
@@ -3392,15 +3495,56 @@ class GeckoAI:
             messagebox.showwarning("Detect Mode", "Please choose model in Step 1.", parent=self.root)
             return
         if not self._detect_source_selected:
-            messagebox.showwarning("Detect Mode", "Please choose source before start.", parent=self.root)
+            messagebox.showwarning("Detect Mode", "Please choose source in Step 2.", parent=self.root)
             return
+        source_kind = self.detect_source_mode_var.get().strip().lower()
+        source_value: Any = self.detect_media_path_var.get().strip()
+        if source_kind == "camera":
+            try:
+                source_value = int(str(source_value or self.detect_camera_index_var.get().strip() or "0"))
+            except Exception:
+                source_value = 0
+            self.detect_camera_index_var.set(str(source_value))
+            self.detect_media_path_var.set(str(source_value))
         output_dir = self.detect_output_dir_var.get().strip()
-        if not output_dir:
-            messagebox.showwarning("Detect Mode", "Please choose output folder before start.", parent=self.root)
-            return
-        if not os.path.isdir(output_dir):
-            messagebox.showerror("Detect Mode", f"Output folder not found:\n{output_dir}", parent=self.root)
-            return
+        if source_kind == "file":
+            if not output_dir:
+                messagebox.showwarning("Detect Mode", "Please choose output folder before start.", parent=self.root)
+                return
+            if not os.path.isdir(output_dir):
+                messagebox.showerror("Detect Mode", f"Output folder not found:\n{output_dir}", parent=self.root)
+                return
+        else:
+            if not output_dir:
+                output_dir = os.path.abspath(os.getcwd())
+                self.detect_output_dir_var.set(output_dir)
+            if not os.path.isdir(output_dir):
+                try:
+                    os.makedirs(output_dir, exist_ok=True)
+                except Exception as exc:
+                    messagebox.showerror("Detect Mode", f"Failed to create output folder:\n{exc}", parent=self.root)
+                    return
+
+        self._detect_frame_interval_ms = 15
+        if source_kind == "camera":
+            max_fps = self._get_camera_max_fps(int(source_value))
+            camera_mode = self.detect_camera_mode_var.get().strip().lower()
+            if camera_mode == "manual":
+                try:
+                    preferred_fps = float(self.detect_manual_fps_var.get().strip())
+                except Exception:
+                    messagebox.showwarning("Detect Mode", "Manual FPS must be a number.", parent=self.root)
+                    return
+                if preferred_fps <= 0:
+                    messagebox.showwarning("Detect Mode", "Manual FPS must be > 0.", parent=self.root)
+                    return
+                if max_fps > 0:
+                    preferred_fps = min(preferred_fps, max_fps)
+                self._detect_frame_interval_ms = max(1, int(round(1000.0 / max(0.1, preferred_fps))))
+            else:
+                auto_fps = max_fps if max_fps > 0 else 30.0
+                self._detect_frame_interval_ms = max(1, int(round(1000.0 / max(0.1, auto_fps))))
+
         run_mode = self.detect_run_mode_var.get().strip().lower()
         if run_mode == "golden":
             if self._detect_golden_sample is None:
@@ -3429,8 +3573,8 @@ class GeckoAI:
                 )
         self.start_detect_mode(
             model_path=self.detect_model_path_var.get().strip(),
-            source_kind=self.detect_source_mode_var.get().strip().lower(),
-            source_value=self.detect_media_path_var.get().strip(),
+            source_kind=source_kind,
+            source_value=source_value,
             output_dir=output_dir,
             conf_threshold=float(self.detect_conf_var.get()),
         )
@@ -3533,7 +3677,7 @@ class GeckoAI:
                 return
         output_dir = (output_dir or "").strip()
         if not output_dir:
-            messagebox.showwarning("Detect Mode", "Please choose output folder in Step 2.", parent=self.root)
+            messagebox.showwarning("Detect Mode", "Please choose output folder in setup page.", parent=self.root)
             return
         output_dir = os.path.abspath(output_dir)
         if not os.path.isdir(output_dir):
@@ -3648,7 +3792,12 @@ class GeckoAI:
         self._set_detect_verdict(None, "")
 
         if source_kind == "camera":
-            self._start_detect_video_stream(0)
+            cam_source: Any = 0
+            try:
+                cam_source = int(str(source_value))
+            except Exception:
+                cam_source = 0
+            self._start_detect_video_stream(cam_source)
             return
 
         src_path = os.path.abspath(str(source_value))
@@ -3661,7 +3810,7 @@ class GeckoAI:
             self._detect_image_index = 0
             if not self._detect_image_paths:
                 messagebox.showwarning("Detect Mode", "No images found in selected folder.")
-                self.show_detect_source_page()
+                self._show_detect_settings_page_for_current_source()
                 return
             self._detect_render_image_index()
             return
@@ -4191,16 +4340,25 @@ class GeckoAI:
 
     def _exit_detect_workspace_to_source(self) -> None:
         self._stop_detect_stream()
-        self.show_detect_source_page()
+        self._show_detect_settings_page_for_current_source()
 
     def _start_detect_video_stream(self, source: Any) -> None:
         cap = cv2.VideoCapture(source)
         if not cap.isOpened():
             messagebox.showerror("Detect Mode", "Failed to open video source.")
-            self.show_detect_source_page()
+            self._show_detect_settings_page_for_current_source()
             return
         self._detect_video_cap = cap
-        self._detect_status_var.set("Video/Cam stream running")
+        src_label = f"camera {source}" if isinstance(source, int) else "video source"
+        fps = 0.0
+        try:
+            fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+        except Exception:
+            fps = 0.0
+        if fps > 0:
+            self._detect_status_var.set(f"{src_label} running ({fps:.1f} FPS)")
+        else:
+            self._detect_status_var.set(f"{src_label} running")
         self._detect_tick_video()
 
     def _detect_tick_video(self) -> None:
@@ -4223,7 +4381,7 @@ class GeckoAI:
         self._append_detect_report_row(f"frame_{self._detect_video_frame_idx:06d}", results[0], verdict, detail)
         self._update_detect_class_panel(results[0])
         self._show_detect_plot(plotted)
-        self._detect_after_id = self.root.after(15, self._detect_tick_video)
+        self._detect_after_id = self.root.after(max(1, int(self._detect_frame_interval_ms)), self._detect_tick_video)
 
     def _should_use_background_cut_detection(self) -> bool:
         return (
@@ -5187,7 +5345,7 @@ class GeckoAI:
                     else f"ID:{class_id}"
                 )
                 if abs(angle_deg) > 1e-3:
-                    class_name = f"{class_name} ({angle_deg:.1f}°)"
+                    class_name = f"{class_name} ({angle_deg:.1f}簞)"
                 
                 # Position label above top-most point of rotated box
                 min_canvas_y = min(canvas_points[1::2]) if canvas_points else y1
@@ -6626,13 +6784,161 @@ class GeckoAI:
         )
         return dataset_yaml
 
+    def open_training_monitor_popup(self) -> None:
+        if self._training_monitor_win is not None and self._training_monitor_win.winfo_exists():
+            self._training_monitor_win.lift()
+            self._training_monitor_win.focus_force()
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title(LANG_MAP[self.lang].get("train_monitor", "Training Monitor"))
+        win.geometry("760x520")
+        win.minsize(640, 420)
+        win.configure(bg=COLORS["bg_white"])
+        self._training_monitor_win = win
+
+        outer = tk.Frame(win, bg=COLORS["bg_white"])
+        outer.pack(fill="both", expand=True, padx=12, pady=12)
+
+        self.lbl_train_status = tk.Label(
+            outer,
+            text=f"{LANG_MAP[self.lang].get('train_status', 'Status')}: {LANG_MAP[self.lang].get('train_idle', 'Idle')}",
+            font=self.font_primary,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="w",
+        )
+        self.lbl_train_status.pack(fill="x")
+
+        self.lbl_train_progress = tk.Label(
+            outer,
+            text=f"{LANG_MAP[self.lang].get('train_progress', 'Progress')}: -",
+            font=self.font_primary,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="w",
+        )
+        self.lbl_train_progress.pack(fill="x")
+
+        self.lbl_train_eta = tk.Label(
+            outer,
+            text=f"{LANG_MAP[self.lang].get('train_eta', 'ETA')}: -",
+            font=self.font_primary,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="w",
+        )
+        self.lbl_train_eta.pack(fill="x", pady=(0, 6))
+
+        tk.Label(
+            outer,
+            text=LANG_MAP[self.lang].get("train_command", "Command"),
+            font=self.font_primary,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="w",
+        ).pack(fill="x")
+
+        self.entry_train_cmd = tk.Entry(
+            outer,
+            textvariable=self.train_command_var,
+            font=self.font_mono,
+            state="readonly",
+            readonlybackground=COLORS["bg_light"],
+            fg=COLORS["text_primary"],
+        )
+        self.entry_train_cmd.pack(fill="x", pady=(0, 6))
+
+        stop_row = tk.Frame(outer, bg=COLORS["bg_white"])
+        stop_row.pack(fill="x", pady=(0, 6))
+        self.create_secondary_button(
+            stop_row,
+            text="Stop Training",
+            command=self.stop_training,
+        ).pack(side="right")
+
+        log_wrap = tk.Frame(outer, bg=COLORS["bg_white"])
+        log_wrap.pack(fill="both", expand=True)
+        log_wrap.grid_rowconfigure(0, weight=1)
+        log_wrap.grid_columnconfigure(0, weight=1)
+        self.txt_train_log = tk.Text(
+            log_wrap,
+            wrap="none",
+            font=self.font_mono,
+            bg=COLORS["bg_light"],
+            fg=COLORS["text_primary"],
+            relief="flat",
+        )
+        self.txt_train_log.grid(row=0, column=0, sticky="nsew")
+        sb_log_y = tk.Scrollbar(log_wrap, orient="vertical", command=self.txt_train_log.yview)
+        sb_log_y.grid(row=0, column=1, sticky="ns")
+        sb_log_x = tk.Scrollbar(log_wrap, orient="horizontal", command=self.txt_train_log.xview)
+        sb_log_x.grid(row=1, column=0, sticky="ew")
+        self.txt_train_log.configure(
+            yscrollcommand=sb_log_y.set,
+            xscrollcommand=sb_log_x.set,
+        )
+
+        if self._training_log_lines:
+            self.txt_train_log.insert("end", "".join(self._training_log_lines))
+            self.txt_train_log.see("end")
+
+        self._set_training_status(self.training_running)
+        if self.training_total_epochs > 0:
+            self._set_training_progress(self.training_current_epoch, self.training_total_epochs)
+        else:
+            self._set_training_progress(0, 0)
+
+        def on_close() -> None:
+            if self._training_monitor_win is win:
+                self._training_monitor_win = None
+            self.lbl_train_status = None
+            self.lbl_train_progress = None
+            self.lbl_train_eta = None
+            self.entry_train_cmd = None
+            self.txt_train_log = None
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", on_close)
+
+    def stop_training(self) -> None:
+        if not self.training_running:
+            return
+        self._training_stop_requested = True
+        self._append_training_log("[user] stop requested")
+        proc = self.training_process
+        if proc is None:
+            return
+        try:
+            proc.terminate()
+        except Exception:
+            self.logger.exception("Failed to terminate training process")
+        try:
+            self.root.after(1200, lambda: self._force_kill_training_if_alive(proc))
+        except Exception:
+            pass
+
+    def _force_kill_training_if_alive(self, proc: subprocess.Popen[str] | None) -> None:
+        if proc is None:
+            return
+        try:
+            if proc.poll() is None:
+                proc.kill()
+                self._append_training_log("[user] training process killed")
+        except Exception:
+            self.logger.exception("Failed to kill training process")
+
     def _append_training_log(self, line: str) -> None:
-        if hasattr(self, "txt_train_log"):
-            self.txt_train_log.insert("end", line.rstrip() + "\n")
+        log_line = line.rstrip() + "\n"
+        self._training_log_lines.append(log_line)
+        if len(self._training_log_lines) > 2000:
+            self._training_log_lines = self._training_log_lines[-2000:]
+        if self.txt_train_log is not None and self.txt_train_log.winfo_exists():
+            self.txt_train_log.insert("end", log_line)
             self.txt_train_log.see("end")
 
     def _set_training_status(self, running: bool) -> None:
-        if not hasattr(self, "lbl_train_status"):
+        if self.lbl_train_status is None or not self.lbl_train_status.winfo_exists():
             return
         status_text = LANG_MAP[self.lang].get("train_running", "Running") if running else LANG_MAP[self.lang].get("train_idle", "Idle")
         self.lbl_train_status.config(
@@ -6642,7 +6948,7 @@ class GeckoAI:
     def _set_training_progress(self, current_epoch: int, total_epochs: int) -> None:
         self.training_current_epoch = current_epoch
         self.training_total_epochs = total_epochs
-        if hasattr(self, "lbl_train_progress"):
+        if self.lbl_train_progress is not None and self.lbl_train_progress.winfo_exists():
             self.lbl_train_progress.config(
                 text=f"{LANG_MAP[self.lang].get('train_progress', 'Progress')}: {current_epoch}/{total_epochs}"
             )
@@ -6657,7 +6963,7 @@ class GeckoAI:
         return f"{minutes:02d}:{secs:02d}"
 
     def _set_training_eta(self, eta_text: str) -> None:
-        if hasattr(self, "lbl_train_eta"):
+        if self.lbl_train_eta is not None and self.lbl_train_eta.winfo_exists():
             self.lbl_train_eta.config(text=f"{LANG_MAP[self.lang].get('train_eta', 'ETA')}: {eta_text}")
 
     def _handle_training_output_line(self, line: str) -> None:
@@ -6695,12 +7001,17 @@ class GeckoAI:
                 for line in self.training_process.stdout:
                     self._handle_training_output_line(line)
             rc = self.training_process.wait()
-            if rc == 0:
+            if self._training_stop_requested:
+                self.training_queue.put(("stopped",))
+            elif rc == 0:
                 self.training_queue.put(("done",))
             else:
                 self.training_queue.put(("error", f"Process exited with code {rc}"))
         except Exception as exc:
-            self.training_queue.put(("error", str(exc)))
+            if self._training_stop_requested:
+                self.training_queue.put(("stopped",))
+            else:
+                self.training_queue.put(("error", str(exc)))
         finally:
             self.training_process = None
 
@@ -6721,6 +7032,7 @@ class GeckoAI:
                 self._set_training_eta("00:00")
                 if self.training_thread is not None:
                     self.training_thread = None
+                self._training_stop_requested = False
                 output_path = getattr(self, "_last_training_output_path", "")
                 messagebox.showinfo(
                     LANG_MAP[self.lang]["title"],
@@ -6732,6 +7044,7 @@ class GeckoAI:
                 self._set_training_status(False)
                 if self.training_thread is not None:
                     self.training_thread = None
+                self._training_stop_requested = False
                 err = event[1]
                 self.logger.error("Training process failed: %s", err)
                 messagebox.showerror(
@@ -6739,6 +7052,19 @@ class GeckoAI:
                     LANG_MAP[self.lang].get("train_failed", "Training failed: {err}").format(err=err),
                     parent=self.root,
                 )
+            elif kind == "stopped":
+                self.training_running = False
+                self._set_training_status(False)
+                self._set_training_eta("-")
+                if self.training_thread is not None:
+                    self.training_thread = None
+                self._append_training_log("[done] training stopped by user")
+                messagebox.showinfo(
+                    LANG_MAP[self.lang]["title"],
+                    "Training stopped.",
+                    parent=self.root,
+                )
+                self._training_stop_requested = False
         if keep_polling:
             self.root.after(200, self._poll_training_queue)
 
@@ -6841,6 +7167,193 @@ class GeckoAI:
             return None
         return str(choice), result["path"]
 
+    def _prompt_training_runtime_settings(
+        self,
+        max_idx: int,
+    ) -> tuple[int, int, int, int, int, str, str | None] | None:
+        """Pick start/end/epochs/imgsz/batch/weight(+custom path) from predefined lists."""
+        result: dict[str, Any] = {
+            "start_idx": None,
+            "end_idx": None,
+            "epochs": None,
+            "imgsz": None,
+            "batch": None,
+            "weight_mode": None,
+            "custom_weight_path": None,
+        }
+        done = tk.BooleanVar(value=False)
+        overlay = self._open_fullpage_overlay()
+        card = tk.Frame(overlay, bg=COLORS["bg_white"], bd=0, highlightthickness=0)
+        card.place(relx=0.5, rely=0.5, anchor="center", width=560, height=460)
+
+        tk.Label(
+            card,
+            text="Training Settings",
+            font=self.font_title,
+            fg=COLORS["text_primary"],
+            bg=COLORS["bg_white"],
+            anchor="center",
+        ).pack(fill="x", padx=20, pady=(20, 14))
+
+        form = tk.Frame(card, bg=COLORS["bg_white"])
+        form.pack(fill="x", padx=28, pady=(0, 10))
+
+        def add_combo(row: int, label: str, values: list[str], default: str) -> tk.StringVar:
+            tk.Label(
+                form,
+                text=label,
+                font=self.font_primary,
+                fg=COLORS["text_secondary"],
+                bg=COLORS["bg_white"],
+                anchor="w",
+            ).grid(row=row, column=0, sticky="w", pady=(0, 8))
+            var = tk.StringVar(value=default)
+            ttk.Combobox(
+                form,
+                textvariable=var,
+                values=values,
+                state="readonly",
+                font=self.font_primary,
+            ).grid(row=row, column=1, sticky="ew", padx=(12, 0), pady=(0, 8))
+            return var
+
+        form.grid_columnconfigure(1, weight=1)
+        idx_values = [str(i) for i in range(1, max_idx + 1)]
+        start_var = add_combo(0, LANG_MAP[self.lang].get("train_range_start", "Start Index (1-based)"), idx_values, "1")
+        end_var = add_combo(1, LANG_MAP[self.lang].get("train_range_end", "End Index (1-based)"), idx_values, str(max_idx))
+        epochs_var = add_combo(2, LANG_MAP[self.lang].get("train_epochs", "Epochs"), ["10", "20", "50", "100", "200", "300"], "50")
+        imgsz_var = add_combo(3, LANG_MAP[self.lang].get("train_imgsz", "Image Size"), ["320", "416", "512", "640", "768", "960", "1280"], "640")
+        batch_var = add_combo(4, "Batch Size", ["-1 (Auto)", "1", "2", "4", "8", "16", "32", "64"], "-1 (Auto)")
+        weight_var = add_combo(
+            5,
+            "Weight",
+            [
+                "Use Official yolo26m.pt",
+                "Choose Custom Weight",
+                "From Scratch",
+            ],
+            "Use Official yolo26m.pt",
+        )
+        custom_weight_var = tk.StringVar(value="")
+        custom_row = tk.Frame(form, bg=COLORS["bg_white"])
+        custom_row.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+        custom_row.grid_columnconfigure(1, weight=1)
+        tk.Label(
+            custom_row,
+            text="Custom Weight",
+            font=self.font_primary,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="w",
+        ).grid(row=0, column=0, sticky="w")
+        custom_entry = tk.Entry(
+            custom_row,
+            textvariable=custom_weight_var,
+            font=self.font_mono,
+            state="readonly",
+            readonlybackground=COLORS["bg_light"],
+            fg=COLORS["text_primary"],
+        )
+        custom_entry.grid(row=0, column=1, sticky="ew", padx=(12, 8))
+
+        def browse_custom_weight() -> None:
+            model_path = filedialog.askopenfilename(
+                parent=self.root,
+                title="Select custom weight",
+                filetypes=[
+                    ("Model files", "*.pt *.onnx"),
+                    ("PyTorch", "*.pt"),
+                    ("ONNX", "*.onnx"),
+                    ("All files", "*.*"),
+                ],
+            )
+            if not model_path:
+                return
+            try:
+                resolved = self._resolve_custom_model_path(model_path)
+            except FileNotFoundError as exc:
+                messagebox.showerror("Model Error", str(exc), parent=self.root)
+                return
+            custom_weight_var.set(os.path.abspath(resolved))
+
+        browse_btn = self.create_secondary_button(custom_row, text="Browse Weight", command=browse_custom_weight)
+        browse_btn.grid(row=0, column=2, sticky="e")
+
+        def sync_custom_controls(*_args: Any) -> None:
+            mode = str(weight_var.get()).strip()
+            is_custom = mode.startswith("Choose Custom")
+            custom_entry.configure(state="readonly" if is_custom else "disabled")
+            browse_btn.configure(state="normal" if is_custom else "disabled")
+
+        weight_var.trace_add("write", sync_custom_controls)
+        sync_custom_controls()
+
+        def confirm() -> None:
+            try:
+                start_idx = int(str(start_var.get()).strip())
+                end_idx = int(str(end_var.get()).strip())
+                epochs = int(str(epochs_var.get()).strip())
+                imgsz = int(str(imgsz_var.get()).strip())
+                batch_text = str(batch_var.get()).strip().split()[0]
+                batch = int(batch_text)
+                weight_text = str(weight_var.get()).strip()
+                if weight_text.startswith("Use Official"):
+                    weight_mode = "official"
+                elif weight_text.startswith("Choose Custom"):
+                    weight_mode = "custom"
+                else:
+                    weight_mode = "scratch"
+                custom_weight_path = str(custom_weight_var.get()).strip() if weight_mode == "custom" else None
+                if (
+                    start_idx < 1
+                    or end_idx < start_idx
+                    or end_idx > max_idx
+                    or epochs <= 0
+                    or imgsz <= 0
+                    or (batch == 0 or batch < -1)
+                ):
+                    raise ValueError("bad range")
+                if weight_mode == "custom" and not custom_weight_path:
+                    raise ValueError("custom weight missing")
+            except Exception:
+                messagebox.showwarning(LANG_MAP[self.lang]["title"], "Invalid training settings.", parent=self.root)
+                return
+            result["start_idx"] = start_idx
+            result["end_idx"] = end_idx
+            result["epochs"] = epochs
+            result["imgsz"] = imgsz
+            result["batch"] = batch
+            result["weight_mode"] = weight_mode
+            result["custom_weight_path"] = custom_weight_path
+            self._close_fullpage_overlay()
+            done.set(True)
+
+        def cancel() -> None:
+            self._close_fullpage_overlay()
+            done.set(True)
+
+        self.create_primary_button(card, text="Confirm", command=confirm, bg=COLORS["success"]).pack(fill="x", padx=28, pady=(6, 8))
+        self.create_secondary_button(card, text="Cancel", command=cancel).pack(fill="x", padx=28, pady=(0, 18))
+        self.root.wait_variable(done)
+        if (
+            result["start_idx"] is None
+            or result["end_idx"] is None
+            or result["epochs"] is None
+            or result["imgsz"] is None
+            or result["batch"] is None
+            or result["weight_mode"] is None
+        ):
+            return None
+        return (
+            int(result["start_idx"]),
+            int(result["end_idx"]),
+            int(result["epochs"]),
+            int(result["imgsz"]),
+            int(result["batch"]),
+            str(result["weight_mode"]),
+            str(result["custom_weight_path"]) if result["custom_weight_path"] else None,
+        )
+
     def start_training_from_labels(self) -> None:
         if not HAS_YOLO:
             messagebox.showwarning("YOLO Not Available", "Please install ultralytics first.")
@@ -6889,73 +7402,10 @@ class GeckoAI:
                 return
 
         max_idx = len(train_candidates)
-        start_idx = simpledialog.askinteger(
-            LANG_MAP[self.lang].get("train_from_labels", "Train From Labels"),
-            f"{LANG_MAP[self.lang].get('train_range_start', 'Start Index (1-based)')}\n1 - {max_idx}",
-            parent=self.root,
-            minvalue=1,
-            maxvalue=max_idx,
-            initialvalue=1,
-        )
-        if start_idx is None:
+        settings = self._prompt_training_runtime_settings(max_idx=max_idx)
+        if settings is None:
             return
-        end_idx = simpledialog.askinteger(
-            LANG_MAP[self.lang].get("train_from_labels", "Train From Labels"),
-            f"{LANG_MAP[self.lang].get('train_range_end', 'End Index (1-based)')}\n{start_idx} - {max_idx}",
-            parent=self.root,
-            minvalue=start_idx,
-            maxvalue=max_idx,
-            initialvalue=max_idx,
-        )
-        if end_idx is None:
-            return
-        if start_idx > end_idx:
-            messagebox.showwarning(
-                LANG_MAP[self.lang]["title"],
-                LANG_MAP[self.lang].get("train_bad_range", "Invalid range. Please input valid start/end index."),
-                parent=self.root,
-            )
-            return
-
-        epochs = simpledialog.askinteger(
-            LANG_MAP[self.lang].get("train_from_labels", "Train From Labels"),
-            LANG_MAP[self.lang].get("train_epochs", "Epochs"),
-            parent=self.root,
-            minvalue=1,
-            maxvalue=1000,
-            initialvalue=50,
-        )
-        if epochs is None:
-            return
-        imgsz = simpledialog.askinteger(
-            LANG_MAP[self.lang].get("train_from_labels", "Train From Labels"),
-            LANG_MAP[self.lang].get("train_imgsz", "Image Size"),
-            parent=self.root,
-            minvalue=64,
-            maxvalue=4096,
-            initialvalue=640,
-        )
-        if imgsz is None:
-            return
-        batch_raw = simpledialog.askstring(
-            LANG_MAP[self.lang].get("train_from_labels", "Train From Labels"),
-            "Batch Size (integer, use -1 for auto)",
-            parent=self.root,
-            initialvalue="-1",
-        )
-        if batch_raw is None:
-            return
-        try:
-            batch_size = int(batch_raw.strip())
-            if batch_size == 0 or batch_size < -1:
-                raise ValueError("batch out of range")
-        except Exception:
-            messagebox.showwarning(
-                LANG_MAP[self.lang]["title"],
-                "Invalid batch size. Please enter an integer >=1 or -1 (auto).",
-                parent=self.root,
-            )
-            return
+        start_idx, end_idx, epochs, imgsz, batch_size, weight_mode, custom_weight_from_settings = settings
 
         out_dir = filedialog.askdirectory(
             parent=self.root,
@@ -6964,10 +7414,6 @@ class GeckoAI:
         if not out_dir:
             return
         out_dir = out_dir.replace("\\", "/")
-
-        weight_choice = self._prompt_training_weight_source()
-        if weight_choice is None:
-            return
 
         selected_train = train_candidates[start_idx - 1:end_idx]
         if not selected_train:
@@ -6990,13 +7436,13 @@ class GeckoAI:
                     selected_train = selected_val[:]
 
         try:
-            choice, custom_path = weight_choice
+            choice = weight_mode
+            custom_path: str | None = custom_weight_from_settings
             extra_train_args: list[str] = []
             if choice == "official":
                 model_path = self._resolve_official_model_path()
             elif choice == "custom":
                 if not custom_path:
-                    messagebox.showerror("Model Error", "No custom model selected.", parent=self.root)
                     return
                 model_path = self._resolve_custom_model_path(custom_path)
             else:
@@ -7036,6 +7482,7 @@ class GeckoAI:
             cmd.extend(extra_train_args)
             command_text = " ".join(f"\"{part}\"" if " " in part else part for part in cmd)
             self.train_command_var.set(command_text)
+            self.open_training_monitor_popup()
             self._append_training_log("=" * 60)
             self._append_training_log(command_text)
             self._append_training_log("=" * 60)
@@ -7763,3 +8210,4 @@ GeckoAILabeller = GeckoAI
 
 if __name__ == "__main__":
     main()
+
