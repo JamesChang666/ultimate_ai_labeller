@@ -1,5 +1,3 @@
-import ctypes
-import ctypes.wintypes
 import copy
 import csv
 import datetime
@@ -28,6 +26,8 @@ from typing import Any
 import numpy as np
 from PIL import Image, ImageDraw, ImageTk
 
+from ai_labeller.ui import button_factory as ui_buttons
+from ai_labeller.ui.monitor_bounds import get_widget_monitor_bounds
 from ai_labeller.core import (
     AppConfig,
     AppState,
@@ -816,35 +816,15 @@ class GeckoAI:
 
     
     def create_toolbar_button(self, parent, text, command, bg=None):
-        """Create a standard toolbar button."""
-        bg_val = bg or COLORS["bg_medium"]
-        fg_val = self.toolbar_text_color(bg_val)
-        btn = tk.Button(
-            parent,
+        return ui_buttons.create_toolbar_button(
+            parent=parent,
             text=text,
             command=command,
-            bg=bg_val,
-            fg=fg_val,
-            font=self.font_primary,
-            relief="flat",
-            padx=16,
-            pady=8,
-            cursor="hand2",
-            borderwidth=0,
-            highlightthickness=0
+            bg=bg,
+            font_primary=self.font_primary,
+            theme=self.theme,
+            colors=COLORS,
         )
-        
-        # Hover effects
-        def on_enter(e):
-            btn.config(bg=COLORS["primary_hover"] if bg == COLORS["primary"] else COLORS["bg_medium"])
-        
-        def on_leave(e):
-            btn.config(bg=bg_val)
-        
-        btn.bind("<Enter>", on_enter)
-        btn.bind("<Leave>", on_leave)
-        
-        return btn
 
     def create_help_icon(self, parent):
         """Create help icon for shortcut tooltip."""
@@ -921,51 +901,7 @@ class GeckoAI:
         self._tooltip_win = win
 
     def _get_widget_monitor_bounds(self, widget):
-        # Fallback for non-Windows or API failure: virtual desktop bounds.
-        left = widget.winfo_vrootx()
-        top = widget.winfo_vrooty()
-        right = left + widget.winfo_vrootwidth()
-        bottom = top + widget.winfo_vrootheight()
-
-        try:
-            user32 = ctypes.windll.user32
-            monitor = user32.MonitorFromPoint(
-                ctypes.wintypes.POINT(widget.winfo_rootx(), widget.winfo_rooty()),
-                2
-            )
-            if not monitor:
-                return left, top, right, bottom
-
-            class RECT(ctypes.Structure):
-                _fields_ = [
-                    ("left", ctypes.c_long),
-                    ("top", ctypes.c_long),
-                    ("right", ctypes.c_long),
-                    ("bottom", ctypes.c_long),
-                ]
-
-            class MONITORINFO(ctypes.Structure):
-                _fields_ = [
-                    ("cbSize", ctypes.c_ulong),
-                    ("rcMonitor", RECT),
-                    ("rcWork", RECT),
-                    ("dwFlags", ctypes.c_ulong),
-                ]
-
-            mi = MONITORINFO()
-            mi.cbSize = ctypes.sizeof(MONITORINFO)
-            ok = user32.GetMonitorInfoW(monitor, ctypes.byref(mi))
-            if ok:
-                return (
-                    mi.rcWork.left,
-                    mi.rcWork.top,
-                    mi.rcWork.right,
-                    mi.rcWork.bottom,
-                )
-        except Exception:
-            pass
-
-        return left, top, right, bottom
+        return get_widget_monitor_bounds(widget)
 
     def hide_shortcut_tooltip(self):
         if self._tooltip_after_id:
@@ -976,51 +912,20 @@ class GeckoAI:
             self._tooltip_win = None
     
     def create_toolbar_icon_button(self, parent, text, command, tooltip="", bg=None, fg=None, circular=False):
-        """Create compact icon-style toolbar button."""
-        bg_val = bg or COLORS["bg_medium"]
-        fg_val = fg or self.toolbar_text_color(bg_val)
-        icon_font = ("Segoe UI Symbol", 14, "bold") if circular else ("Arial", 14)
-        btn = tk.Button(
-            parent,
+        del tooltip
+        return ui_buttons.create_toolbar_icon_button(
+            parent=parent,
             text=text,
             command=command,
-            bg=bg_val,
-            fg=fg_val,
-            font=icon_font,
-            relief="flat",
-            width=2 if circular else 3,
-            height=1,
-            cursor="hand2",
-            borderwidth=0,
-            highlightthickness=0,
-            padx=6 if circular else 0,
-            pady=2 if circular else 0,
+            bg=bg,
+            fg=fg,
+            circular=circular,
+            theme=self.theme,
+            colors=COLORS,
         )
-        
-        # Hover effects
-        def on_enter(e):
-            if bg:
-                btn.config(bg=self.lighten_color(bg))
-            else:
-                btn.config(bg=COLORS["divider"])
-        
-        def on_leave(e):
-            btn.config(bg=bg_val)
-        
-        btn.bind("<Enter>", on_enter)
-        btn.bind("<Leave>", on_leave)
-        
-        return btn
     
     def lighten_color(self, color):
-        """Return a lighter variant for known accent colors."""
-        if color == "#000000":
-            return "#1A1A1A"
-        if color == COLORS["danger"]:
-            return "#FF6B54"
-        elif color == COLORS["warning"]:
-            return "#FFBB33"
-        return color
+        return ui_buttons.lighten_color(color, COLORS)
     
     def setup_sidebar(self):
         """Build scrollable right sidebar."""
@@ -1120,19 +1025,10 @@ class GeckoAI:
         return LANG_MAP[self.lang][key]
 
     def is_accent_bg(self, bg):
-        return bg in {
-            COLORS["primary"],
-            COLORS["warning"],
-            COLORS["danger"],
-            COLORS["success"],
-            COLORS["info"],
-            COLORS["primary_light"],
-        }
+        return ui_buttons.is_accent_bg(bg, COLORS)
 
     def toolbar_text_color(self, bg):
-        if self.is_accent_bg(bg):
-            return COLORS["text_white"]
-        return COLORS["text_white"] if self.theme == "dark" else COLORS["text_primary"]
+        return ui_buttons.toolbar_text_color(bg, self.theme, COLORS)
 
     def apply_theme(self, theme, rebuild=True):
         self.theme = theme
@@ -1499,92 +1395,34 @@ class GeckoAI:
         )
     
     def create_primary_button(self, parent, text, command, bg=None):
-        """Create a primary action button."""
-        btn = tk.Button(
-            parent,
-            text=text,
-            command=command,
-            bg=bg or COLORS["primary"],
-            fg=COLORS["text_white"],
-            font=self.font_primary,
-            relief="flat",
-            pady=10,
-            cursor="hand2",
-            borderwidth=0,
-            highlightthickness=0
-        )
-        
-        # Hover effect
-        original_bg = bg or COLORS["primary"]
-        hover_bg = COLORS["primary_hover"] if not bg else self.lighten_color(bg)
-        
-        btn.bind("<Enter>", lambda e: btn.config(bg=hover_bg))
-        btn.bind("<Leave>", lambda e: btn.config(bg=original_bg))
-        
-        return btn
-
-    def create_secondary_button(self, parent, text, command):
-        """Create a secondary sidebar button."""
-        label = str(text).strip().lower()
-        is_back_button = label.startswith("back")
-        base_bg = COLORS["danger"] if is_back_button else COLORS["bg_white"]
-        base_fg = COLORS["text_white"] if is_back_button else COLORS["text_primary"]
-        hover_bg = self.lighten_color(base_bg) if is_back_button else COLORS["bg_light"]
-        btn = tk.Button(
-            parent,
-            text=text,
-            command=command,
-            bg=base_bg,
-            fg=base_fg,
-            font=self.font_primary,
-            relief="flat",
-            pady=10,
-            cursor="hand2",
-            borderwidth=0 if is_back_button else 1,
-            highlightthickness=0
-        )
-        if is_back_button:
-            btn.config(highlightbackground=base_bg, highlightcolor=base_bg)
-        else:
-            btn.config(highlightbackground=COLORS["border"], highlightcolor=COLORS["border"])
-        btn.bind("<Enter>", lambda e: btn.config(bg=hover_bg))
-        btn.bind("<Leave>", lambda e: btn.config(bg=base_bg))
-        return btn
-    
-    def create_nav_button(self, parent, text, command, side, primary=False):
-        """Create a navigation button."""
-        bg = COLORS["primary"] if primary else COLORS["bg_white"]
-        fg = COLORS["text_white"] if primary else COLORS["text_primary"]
-        
-        btn = tk.Button(
-            parent,
+        return ui_buttons.create_primary_button(
+            parent=parent,
             text=text,
             command=command,
             bg=bg,
-            fg=fg,
-            font=self.font_bold,
-            relief="flat",
-            pady=12,
-            cursor="hand2",
-            borderwidth=0 if primary else 1,
-            highlightthickness=0
+            font_primary=self.font_primary,
+            colors=COLORS,
         )
-        
-        if not primary:
-            btn.config(highlightbackground=COLORS["border"], highlightcolor=COLORS["border"])
-        
-        # Hover effect
-        if primary:
-            btn.bind("<Enter>", lambda e: btn.config(bg=COLORS["primary_hover"]))
-            btn.bind("<Leave>", lambda e: btn.config(bg=COLORS["primary"]))
-        else:
-            btn.bind("<Enter>", lambda e: btn.config(bg=COLORS["bg_light"]))
-            btn.bind("<Leave>", lambda e: btn.config(bg=COLORS["bg_white"]))
-        
-        if side == "left":
-            btn.pack(side="left", fill="both", expand=True, padx=(0, 4))
-        else:
-            btn.pack(side="right", fill="both", expand=True, padx=(4, 0))
+
+    def create_secondary_button(self, parent, text, command):
+        return ui_buttons.create_secondary_button(
+            parent=parent,
+            text=text,
+            command=command,
+            font_primary=self.font_primary,
+            colors=COLORS,
+        )
+    
+    def create_nav_button(self, parent, text, command, side, primary=False):
+        return ui_buttons.create_nav_button(
+            parent=parent,
+            text=text,
+            command=command,
+            side=side,
+            primary=primary,
+            font_bold=self.font_bold,
+            colors=COLORS,
+        )
     
     def toggle_language(self):
         """Language switching disabled (English-only mode)."""
