@@ -1,3 +1,7 @@
+if __package__ in {None, ""}:
+    import os, sys
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import copy
 import csv
 import datetime
@@ -28,6 +32,7 @@ from PIL import Image, ImageDraw, ImageTk
 
 from ai_labeller.ui import button_factory as ui_buttons
 from ai_labeller.ui.monitor_bounds import get_widget_monitor_bounds
+from ai_labeller.ui import window_pages
 from ai_labeller.core import (
     AppConfig,
     AppState,
@@ -842,8 +847,8 @@ class GeckoAI:
         btn.bind("<Leave>", lambda e: self.hide_shortcut_tooltip())
         return btn
 
-    def build_shortcut_text(self):
-        items = [
+    def _shortcut_items(self) -> list[tuple[str, str]]:
+        return [
             ("F", LANG_MAP[self.lang]["next"]),
             ("D", LANG_MAP[self.lang]["prev"]),
             ("Q / E", "Rotate selected box"),
@@ -851,8 +856,10 @@ class GeckoAI:
             ("Ctrl+Y", LANG_MAP[self.lang]["redo"]),
             ("Del", LANG_MAP[self.lang]["delete"]),
         ]
+
+    def build_shortcut_text(self):
         lines = [LANG_MAP[self.lang]["shortcut_help"]]
-        for key, desc in items:
+        for key, desc in self._shortcut_items():
             lines.append(f"{key} - {desc}")
         return "\n".join(lines)
 
@@ -1335,17 +1342,8 @@ class GeckoAI:
     def create_shortcut_card(self, parent):
         """Render shortcut hint list."""
         content = self.create_card(parent, LANG_MAP[self.lang]["shortcuts"])
-        
-        shortcuts = [
-            ("F", LANG_MAP[self.lang]["next"]),
-            ("D", LANG_MAP[self.lang]["prev"]),
-            ("Q / E", "Rotate selected box"),
-            ("Ctrl+Z", LANG_MAP[self.lang]["undo"]),
-            ("Ctrl+Y", LANG_MAP[self.lang]["redo"]),
-            ("Del", LANG_MAP[self.lang]["delete"])
-        ]
-        
-        for key, desc in shortcuts:
+
+        for key, desc in self._shortcut_items():
             row = tk.Frame(content, bg=COLORS["bg_white"])
             row.pack(fill="x", pady=2)
             
@@ -1848,85 +1846,57 @@ class GeckoAI:
         return True
 
     def show_app_mode_dialog(self, force: bool = False) -> None:
-        mode = getattr(self, "_startup_mode", "chooser")
-        if mode == "detect":
-            self.show_detect_mode_page()
-            return
-        if mode == "label":
-            self.show_startup_source_dialog(force=True)
-            return
-        if self._app_mode_dialog_open:
-            return
-        if not force and self._app_mode_dialog_shown:
-            return
-        self._app_mode_dialog_shown = True
-        self._app_mode_dialog_open = True
-        if hasattr(self, "_app_mode_page") and self._app_mode_page is not None:
-            try:
-                self._app_mode_page.destroy()
-            except Exception:
-                pass
-
-        page = tk.Frame(self.root, bg=COLORS["bg_dark"])
-        page.place(relx=0, rely=0, relwidth=1, relheight=1)
-        self._app_mode_page = page
-
-        card = tk.Frame(page, bg=COLORS["bg_white"], bd=0, highlightthickness=0)
-        card.place(relx=0.5, rely=0.5, anchor="center", width=520, height=290)
-
-        tk.Label(
-            card,
-            text="Choose startup mode",
-            bg=COLORS["bg_white"],
-            fg=COLORS["text_primary"],
-            font=self.font_title,
-            anchor="center",
-        ).pack(fill="x", padx=24, pady=(26, 20))
-
-        def choose_label_mode() -> None:
-            self._close_app_mode_dialog()
-            self.root.after(1, lambda: self.show_startup_source_dialog(force=True, bypass_detect_lock=True))
-
-        def choose_detect_mode() -> None:
-            self._close_app_mode_dialog()
-            self.root.after(1, self.show_detect_mode_page)
-
-        self.create_primary_button(
-            card,
-            text="Label / Training Mode",
-            command=choose_label_mode,
-            bg=COLORS["primary"],
-        ).pack(fill="x", padx=28, pady=(0, 12))
-
-        self.create_primary_button(
-            card,
-            text="Detect Mode (Realtime Video / Image)",
-            command=choose_detect_mode,
-            bg=COLORS["success"],
-        ).pack(fill="x", padx=28, pady=(0, 12))
-
-        # Intentionally no Back button on startup mode chooser.
+        window_pages.show_app_mode_dialog(self, COLORS, LANG_MAP, force=force)
 
     def _close_app_mode_dialog(self) -> None:
-        if hasattr(self, "_app_mode_page") and self._app_mode_page is not None:
-            try:
-                self._app_mode_page.destroy()
-            except Exception:
-                pass
-            self._app_mode_page = None
-        self._app_mode_dialog_open = False
+        window_pages.close_app_mode_dialog(self)
 
-    def show_detect_mode_page(self) -> None:
-        """Detect setup step 1: model selection page."""
-        if getattr(self, "_startup_mode", "chooser") == "label":
-            self.show_startup_source_dialog(force=True)
-            return
+    def _reset_detect_setup_page(self) -> tk.Frame:
         self._detect_mode_active = True
         self._stop_detect_stream()
         self._detect_workspace_frame = None
         self.hide_shortcut_tooltip()
         for child in self.root.winfo_children():
             child.destroy()
+        wrap = tk.Frame(self.root, bg=COLORS["bg_dark"])
+        wrap.pack(fill="both", expand=True)
+        return wrap
+
+    def _create_detect_setup_card(
+        self,
+        wrap: tk.Frame,
+        *,
+        width: int,
+        height: int,
+        title: str,
+        subtitle: str,
+    ) -> tk.Frame:
+        card = tk.Frame(wrap, bg=COLORS["bg_white"], bd=0, highlightthickness=0)
+        card.place(relx=0.5, rely=0.5, anchor="center", width=width, height=height)
+        tk.Label(
+            card,
+            text=title,
+            font=self.font_title,
+            fg=COLORS["text_primary"],
+            bg=COLORS["bg_white"],
+            anchor="center",
+        ).pack(fill="x", padx=24, pady=(28, 8))
+        tk.Label(
+            card,
+            text=subtitle,
+            font=self.font_primary,
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_white"],
+            anchor="center",
+        ).pack(fill="x", padx=24, pady=(0, 14))
+        return card
+
+    def show_detect_mode_page(self) -> None:
+        """Detect setup step 1: model selection page."""
+        if getattr(self, "_startup_mode", "chooser") == "label":
+            self.show_startup_source_dialog(force=True)
+            return
+        wrap = self._reset_detect_setup_page()
 
         if not hasattr(self, "detect_model_path_var"):
             self.detect_model_path_var = tk.StringVar(value="")
@@ -1941,29 +1911,13 @@ class GeckoAI:
         if not hasattr(self, "_detect_source_selected"):
             self._detect_source_selected = False
 
-        wrap = tk.Frame(self.root, bg=COLORS["bg_dark"])
-        wrap.pack(fill="both", expand=True)
-
-        card = tk.Frame(wrap, bg=COLORS["bg_white"], bd=0, highlightthickness=0)
-        card.place(relx=0.5, rely=0.5, anchor="center", width=700, height=520)
-
-        tk.Label(
-            card,
-            text="Detect Mode - Step 1",
-            font=self.font_title,
-            fg=COLORS["text_primary"],
-            bg=COLORS["bg_white"],
-            anchor="center",
-        ).pack(fill="x", padx=24, pady=(28, 8))
-
-        tk.Label(
-            card,
-            text="Choose detection model",
-            font=self.font_primary,
-            fg=COLORS["text_secondary"],
-            bg=COLORS["bg_white"],
-            anchor="center",
-        ).pack(fill="x", padx=24, pady=(0, 14))
+        card = self._create_detect_setup_card(
+            wrap,
+            width=700,
+            height=520,
+            title="Detect Mode - Step 1",
+            subtitle="Choose detection model",
+        )
 
         selected_model = self.detect_model_path_var.get().strip()
         model_hint = f"Selected: {selected_model}" if selected_model else "Selected: None"
@@ -2007,36 +1961,14 @@ class GeckoAI:
 
     def show_detect_source_page(self) -> None:
         """Detect setup step 2: source selection page."""
-        self._detect_mode_active = True
-        self._stop_detect_stream()
-        self._detect_workspace_frame = None
-        self.hide_shortcut_tooltip()
-        for child in self.root.winfo_children():
-            child.destroy()
-
-        wrap = tk.Frame(self.root, bg=COLORS["bg_dark"])
-        wrap.pack(fill="both", expand=True)
-
-        card = tk.Frame(wrap, bg=COLORS["bg_white"], bd=0, highlightthickness=0)
-        card.place(relx=0.5, rely=0.5, anchor="center", width=700, height=520)
-
-        tk.Label(
-            card,
-            text="Detect Mode - Step 2",
-            font=self.font_title,
-            fg=COLORS["text_primary"],
-            bg=COLORS["bg_white"],
-            anchor="center",
-        ).pack(fill="x", padx=24, pady=(28, 8))
-
-        tk.Label(
-            card,
-            text="Choose source type",
-            font=self.font_primary,
-            fg=COLORS["text_secondary"],
-            bg=COLORS["bg_white"],
-            anchor="center",
-        ).pack(fill="x", padx=24, pady=(0, 14))
+        wrap = self._reset_detect_setup_page()
+        card = self._create_detect_setup_card(
+            wrap,
+            width=700,
+            height=520,
+            title="Detect Mode - Step 2",
+            subtitle="Choose source type",
+        )
 
         current_source = self.detect_source_mode_var.get().strip().lower()
         if not self._detect_source_selected:
@@ -2079,34 +2011,14 @@ class GeckoAI:
 
     def show_detect_camera_mode_page(self) -> None:
         """Detect setup step 3 (camera): choose auto/manual speed and start."""
-        self._detect_mode_active = True
-        self._stop_detect_stream()
-        self._detect_workspace_frame = None
-        self.hide_shortcut_tooltip()
-        for child in self.root.winfo_children():
-            child.destroy()
-
-        wrap = tk.Frame(self.root, bg=COLORS["bg_dark"])
-        wrap.pack(fill="both", expand=True)
-        card = tk.Frame(wrap, bg=COLORS["bg_white"], bd=0, highlightthickness=0)
-        card.place(relx=0.5, rely=0.5, anchor="center", width=760, height=600)
-
-        tk.Label(
-            card,
-            text="Detect Mode - Step 3 (Camera)",
-            font=self.font_title,
-            fg=COLORS["text_primary"],
-            bg=COLORS["bg_white"],
-            anchor="center",
-        ).pack(fill="x", padx=24, pady=(28, 8))
-        tk.Label(
-            card,
-            text="Choose camera speed mode",
-            font=self.font_primary,
-            fg=COLORS["text_secondary"],
-            bg=COLORS["bg_white"],
-            anchor="center",
-        ).pack(fill="x", padx=24, pady=(0, 14))
+        wrap = self._reset_detect_setup_page()
+        card = self._create_detect_setup_card(
+            wrap,
+            width=760,
+            height=600,
+            title="Detect Mode - Step 3 (Camera)",
+            subtitle="Choose camera speed mode",
+        )
 
         cams = self._detect_available_cameras[:] or self._scan_available_cameras()
         self._detect_available_cameras = cams[:]
@@ -2264,34 +2176,14 @@ class GeckoAI:
 
     def show_detect_file_settings_page(self) -> None:
         """Detect setup step 3 (image folder): configure run settings and start."""
-        self._detect_mode_active = True
-        self._stop_detect_stream()
-        self._detect_workspace_frame = None
-        self.hide_shortcut_tooltip()
-        for child in self.root.winfo_children():
-            child.destroy()
-
-        wrap = tk.Frame(self.root, bg=COLORS["bg_dark"])
-        wrap.pack(fill="both", expand=True)
-        card = tk.Frame(wrap, bg=COLORS["bg_white"], bd=0, highlightthickness=0)
-        card.place(relx=0.5, rely=0.5, anchor="center", width=760, height=760)
-
-        tk.Label(
-            card,
-            text="Detect Mode - Step 3 (Image Folder)",
-            font=self.font_title,
-            fg=COLORS["text_primary"],
-            bg=COLORS["bg_white"],
-            anchor="center",
-        ).pack(fill="x", padx=24, pady=(28, 8))
-        tk.Label(
-            card,
-            text="Set confidence threshold and run options",
-            font=self.font_primary,
-            fg=COLORS["text_secondary"],
-            bg=COLORS["bg_white"],
-            anchor="center",
-        ).pack(fill="x", padx=24, pady=(0, 14))
+        wrap = self._reset_detect_setup_page()
+        card = self._create_detect_setup_card(
+            wrap,
+            width=760,
+            height=760,
+            title="Detect Mode - Step 3 (Image Folder)",
+            subtitle="Set confidence threshold and run options",
+        )
 
         src_text = self.detect_media_path_var.get().strip() or "None"
         tk.Label(
@@ -3640,11 +3532,7 @@ class GeckoAI:
 
         src_path = os.path.abspath(str(source_value))
         if os.path.isdir(src_path):
-            exts = (".jpg", ".jpeg", ".png", ".bmp")
-            self._detect_image_paths = sorted(
-                p for p in glob.glob(os.path.join(src_path, "*.*"))
-                if p.lower().endswith(exts)
-            )
+            self._detect_image_paths = self._glob_image_files(src_path, include_bmp=True)
             self._detect_image_index = 0
             if not self._detect_image_paths:
                 messagebox.showwarning("Detect Mode", "No images found in selected folder.")
@@ -4629,85 +4517,17 @@ class GeckoAI:
         reason: str | None = None,
         bypass_detect_lock: bool = False,
     ) -> None:
-        mode = getattr(self, "_startup_mode", "chooser")
-        if mode == "detect" and not bypass_detect_lock:
-            self.show_detect_mode_page()
-            return
-        if self._startup_dialog_open:
-            return
-        if not force and getattr(self, "_startup_dialog_shown", False):
-            return
-        self._startup_dialog_shown = True
-        self._startup_dialog_open = True
-        if reason:
-            self.logger.info("Showing startup source dialog: %s", reason)
-
-        overlay = self._open_fullpage_overlay()
-        card = tk.Frame(overlay, bg=COLORS["bg_white"], bd=0, highlightthickness=0)
-        card.place(relx=0.5, rely=0.5, anchor="center", width=540, height=320)
-
-        tk.Label(
-            card,
-            text=LANG_MAP[self.lang]["startup_prompt"],
-            bg=COLORS["bg_white"],
-            fg=COLORS["text_primary"],
-            font=self.font_title,
-            anchor="center",
-        ).pack(fill="x", padx=20, pady=(24, 18))
-
-        source_choices: list[tuple[str, str]] = [
-            (LANG_MAP[self.lang]["startup_images"], "images"),
-            (LANG_MAP[self.lang]["startup_yolo"], "yolo"),
-            (LANG_MAP[self.lang]["startup_rfdetr"], "rfdetr"),
-        ]
-        source_label_to_mode = {label: mode for label, mode in source_choices}
-        startup_source_var = tk.StringVar(value=LANG_MAP[self.lang]["startup_images"])
-
-        tk.Label(
-            card,
-            text=LANG_MAP[self.lang]["startup_choose_source"],
-            bg=COLORS["bg_white"],
-            fg=COLORS["text_secondary"],
-            font=self.font_primary,
-            anchor="w",
-        ).pack(fill="x", padx=28, pady=(0, 6))
-
-        ttk.Combobox(
-            card,
-            textvariable=startup_source_var,
-            values=[label for label, _mode in source_choices],
-            state="readonly",
-            font=self.font_primary,
-        ).pack(fill="x", padx=28, pady=(0, 14))
-
-        def choose_startup_source() -> None:
-            mode_value = source_label_to_mode.get(startup_source_var.get(), "images")
-            self._close_startup_dialog()
-            if mode_value == "yolo":
-                self.det_model_mode.set("Custom YOLO (v5/v7/v8/v9/v11/v26)")
-            elif mode_value == "rfdetr":
-                self.det_model_mode.set("Custom RF-DETR")
-            self.root.after(1, lambda: self.startup_choose_images_folder(mode_value))
-
-        self.create_primary_button(
-            card,
-            text="Start",
-            command=choose_startup_source,
-            bg=COLORS["primary"],
-        ).pack(fill="x", padx=28, pady=(0, 16))
-
-        self.create_secondary_button(
-            card,
-            text="Back",
-            command=lambda: (self._close_startup_dialog(), self.show_startup_source_dialog(force=True))
-            if getattr(self, "_startup_mode", "chooser") == "label"
-            else (self._close_startup_dialog(), self.show_app_mode_dialog(force=True)),
-        ).pack(fill="x", padx=28, pady=(0, 10))
+        window_pages.show_startup_source_dialog(
+            self,
+            COLORS,
+            LANG_MAP,
+            force=force,
+            reason=reason,
+            bypass_detect_lock=bypass_detect_lock,
+        )
 
     def _close_startup_dialog(self) -> None:
-        self._close_fullpage_overlay()
-        self._startup_dialog_open = False
-        self.logger.info("Startup source dialog closed")
+        window_pages.close_startup_dialog(self)
 
     def _choose_model_then_images(self, mode: str) -> None:
         try:
@@ -4931,10 +4751,23 @@ class GeckoAI:
 
     def _list_split_images_for_root(self, project_root: str, split: str) -> list[str]:
         img_path = f"{project_root}/images/{split}"
-        return sorted([
-            f for f in glob.glob(f"{img_path}/*.*")
-            if f.lower().endswith((".png", ".jpg", ".jpeg"))
-        ])
+        return self._glob_image_files(img_path)
+
+    def _glob_image_files(self, folder_path: str, include_bmp: bool = False) -> list[str]:
+        exts = (".png", ".jpg", ".jpeg", ".bmp") if include_bmp else (".png", ".jpg", ".jpeg")
+        return sorted(
+            f for f in glob.glob(f"{folder_path}/*.*")
+            if f.lower().endswith(exts)
+        )
+
+    def _glob_label_files(self, project_root: str) -> list[str]:
+        split_roots = [s for s in ("train", "val", "test") if os.path.isdir(f"{project_root}/labels/{s}")]
+        if split_roots:
+            label_files: list[str] = []
+            for split in split_roots:
+                label_files.extend(glob.glob(f"{project_root}/labels/{split}/*.txt"))
+            return label_files
+        return glob.glob(f"{project_root}/labels/train/*.txt")
 
     def _existing_image_splits(self, project_root: str) -> list[str]:
         splits: list[str] = []
@@ -5024,10 +4857,7 @@ class GeckoAI:
         self.current_split = "train"
         self.combo_split.set(self.current_split)
 
-        self.image_files = sorted([
-            f for f in glob.glob(f"{self.project_root}/*.*")
-            if f.lower().endswith((".png", ".jpg", ".jpeg"))
-        ])
+        self.image_files = self._glob_image_files(self.project_root)
 
         os.makedirs(f"{self.project_root}/labels/{self.current_split}", exist_ok=True)
 
@@ -6190,13 +6020,7 @@ class GeckoAI:
         if not self.project_root:
             return
 
-        label_files: list[str] = []
-        split_roots = [s for s in ("train", "val", "test") if os.path.isdir(f"{self.project_root}/labels/{s}")]
-        if split_roots:
-            for split in split_roots:
-                label_files.extend(glob.glob(f"{self.project_root}/labels/{split}/*.txt"))
-        else:
-            label_files.extend(glob.glob(f"{self.project_root}/labels/train/*.txt"))
+        label_files = self._glob_label_files(self.project_root)
 
         for lbl_path in label_files:
             try:
@@ -6376,10 +6200,7 @@ class GeckoAI:
 
     def _list_split_images(self, split: str) -> list[str]:
         img_path = f"{self.project_root}/images/{split}"
-        return sorted([
-            f for f in glob.glob(f"{img_path}/*.*")
-            if f.lower().endswith(('.png', '.jpg', '.jpeg'))
-        ])
+        return self._glob_image_files(img_path)
     
     def autolabel_red(self) -> None:
         """Auto-label reddish regions using LAB + contour filtering."""
@@ -6568,10 +6389,7 @@ class GeckoAI:
 
     def _list_flat_labeled_images_for_root(self, project_root: str) -> list[str]:
         labeled: list[str] = []
-        for img_path in sorted(
-            f for f in glob.glob(f"{project_root}/*.*")
-            if f.lower().endswith((".png", ".jpg", ".jpeg"))
-        ):
+        for img_path in self._glob_image_files(project_root):
             base = os.path.splitext(os.path.basename(img_path))[0]
             lbl_path = f"{project_root}/labels/train/{base}.txt"
             if os.path.isfile(lbl_path) and os.path.getsize(lbl_path) > 0:
@@ -7363,10 +7181,7 @@ class GeckoAI:
             return entries
 
         # Flat image folder mode
-        for img_path in sorted(
-            f for f in glob.glob(f"{self.project_root}/*.*")
-            if f.lower().endswith((".png", ".jpg", ".jpeg"))
-        ):
+        for img_path in self._glob_image_files(self.project_root):
             base = os.path.splitext(os.path.basename(img_path))[0]
             lbl_path = f"{self.project_root}/labels/train/{base}.txt"
             entries.append(("train", img_path, lbl_path))
